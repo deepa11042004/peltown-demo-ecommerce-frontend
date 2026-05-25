@@ -95,7 +95,7 @@ export default function AdminLayout({
         }`}
       >
         <div className="h-16 flex items-center justify-between px-6 border-b border-gray-200">
-          <span className="font-black text-xl tracking-tight uppercase">Everace Admin</span>
+          <span className="font-black text-xl tracking-tight uppercase">PelTown Admin</span>
           <button
             onClick={closeSidebar}
             className="p-2 rounded-lg text-gray-400 hover:text-gray-900 hover:bg-gray-100 lg:hidden cursor-pointer transition-colors"

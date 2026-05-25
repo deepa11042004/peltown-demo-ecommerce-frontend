@@ -1,6 +1,5 @@
 "use client";
 import React, { useState } from 'react';
-import Image from 'next/image';
 import Link from 'next/link';
 import { authApi } from '@/lib/api';
 import { motion } from 'framer-motion';
@@ -34,7 +33,7 @@ const ChangePasswordPage = () => {
 
   return (
     <div className="min-h-screen bg-[#1a1a1a] flex items-center justify-center p-6 relative overflow-hidden">
-      <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#facc15] opacity-5 blur-[120px] -mr-64 -mt-64 rounded-full" />
+      <div className="absolute top-0 right-0 w-125 h-125 bg-[#facc15] opacity-5 blur-[120px] -mr-64 -mt-64 rounded-full" />
       
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
@@ -42,15 +41,10 @@ const ChangePasswordPage = () => {
         className="w-full max-w-md bg-[#242424] rounded-[40px] p-10 shadow-2xl border border-white/5 relative z-10"
       >
         <div className="text-center mb-10">
-          <Link href="/" className="inline-block mb-6 cursor-pointer">
-            <Image
-              src="/Img/logo.webp"
-              alt="Everace Logo"
-              width={150}
-              height={38}
-              className="brightness-0 invert hover:opacity-90 transition-opacity"
-              priority
-            />
+          <Link href="/" className="inline-flex mb-6 cursor-pointer">
+            <span className="text-[24px] font-black tracking-tighter text-white">
+              PelTown
+            </span>
           </Link>
           <h2 className="text-3xl font-black text-white tracking-tight mb-2">Security</h2>
           <p className="text-gray-400 font-medium">Update your account password</p>

@@ -2,7 +2,6 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
@@ -58,21 +57,16 @@ export default function AdminLoginPage() {
         className="w-full max-w-md bg-[#242424] rounded-4xl p-10 shadow-2xl border border-white/10 relative z-10"
       >
         <div className="text-center mb-10">
-          <Link href="/" className="inline-block mb-6 cursor-pointer">
-            <Image
-              src="/Img/logo.webp"
-              alt="Everace Logo"
-              width={150}
-              height={38}
-              className="brightness-0 invert hover:opacity-90 transition-opacity"
-              priority
-            />
+          <Link href="/" className="inline-flex mb-6 cursor-pointer">
+            <span className="text-[24px] font-black tracking-[-0.05em] text-white">
+              PelTown
+            </span>
           </Link>
           <div className="w-14 h-14 rounded-2xl bg-[#facc15]/15 border border-[#facc15]/30 text-[#facc15] flex items-center justify-center mx-auto mb-4">
             <FaShieldAlt size={24} />
           </div>
-          <h1 className="text-3xl font-black text-white tracking-tight mb-2">Admin Panel Login</h1>
-          <p className="text-sm text-gray-400 font-medium">Only admin and super admin accounts can continue.</p>
+          <h1 className="text-3xl font-black text-white tracking-tight mb-2">PelTown Admin Login</h1>
+          <p className="text-sm text-gray-400 font-medium">Only PelTown admin and super admin accounts can continue.</p>
         </div>
 
         {error && (
@@ -119,7 +113,7 @@ export default function AdminLoginPage() {
               "Signing in..."
             ) : (
               <>
-                Enter Admin Panel <FaArrowRight className="group-hover:translate-x-1 transition-transform" />
+                Enter PelTown Admin Panel <FaArrowRight className="group-hover:translate-x-1 transition-transform" />
               </>
             )}
           </button>

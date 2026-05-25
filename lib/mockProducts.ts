@@ -83,7 +83,7 @@ export const mockProducts: Product[] = [
       "The ultimate family-sized super snack pack. Carefully balanced proportions of raw almonds, premium cashews, crunchy walnuts, and pumpkin seeds. Designed for busy professionals and growing families seeking clean, wholesome snacking.",
     benefits: ["Family Value Pack", "High Fiber & Zinc", "Zero Cholesterol"],
     specs: [
-      { label: "Origin", value: "Everace Select Blend" },
+      { label: "Origin", value: "PelTown Select Blend" },
       { label: "Weight", value: "1000g Family Pack" },
       { label: "Storage", value: "Resealable Pouch" },
       { label: "Shelf Life", value: "12 Months" },

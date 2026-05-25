@@ -27,7 +27,7 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   useEffect(() => {
     try {
-      const stored = localStorage.getItem("everace_wishlist");
+      const stored = localStorage.getItem("peltown_wishlist");
       if (stored) {
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setWishlist(JSON.parse(stored));
@@ -41,7 +41,7 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   useEffect(() => {
     if (isInitialized) {
       try {
-        localStorage.setItem("everace_wishlist", JSON.stringify(wishlist));
+        localStorage.setItem("peltown_wishlist", JSON.stringify(wishlist));
       } catch (e) {
         console.error("Failed to save wishlist", e);
       }

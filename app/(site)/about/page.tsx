@@ -42,7 +42,7 @@ export default function AboutPage() {
       <section className="relative w-full overflow-hidden h-[380px] md:h-[480px] flex items-center justify-center">
         <Image
           src="/Img/hero.webp"
-          alt="Everace Heritage"
+          alt="PelTown Heritage"
           fill
           sizes="100vw"
           className="object-cover z-0"
@@ -75,7 +75,7 @@ export default function AboutPage() {
             transition={{ duration: 0.6, delay: 0.2 }}
             className="text-sm md:text-lg text-gray-200 font-medium max-w-2xl mx-auto leading-relaxed"
           >
-            For over three decades, Everace has been dedicated to cultivating and delivering the finest natural dry fruits, pure saffron, and artisanal honeys from the heights of the Himalayas.
+            For over three decades, PelTown has been dedicated to cultivating and delivering the finest natural dry fruits, pure saffron, and artisanal honeys from the heights of the Himalayas.
           </motion.p>
         </div>
       </section>

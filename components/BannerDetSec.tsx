@@ -9,7 +9,7 @@ const BannerDetSec = () => {
       {/* Background Image */}
       <Image
         src="/Img/mockup.webp"
-        alt="Everace Premium Collection"
+        alt="PelTown Premium Collection"
         fill
         sizes="100vw"
         className="object-cover z-0"

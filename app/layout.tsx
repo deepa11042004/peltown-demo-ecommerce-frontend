@@ -17,8 +17,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Everace",
-  description: "Everace Premium Nuts & Spices",
+  title: "PelTown",
+  description: "PelTown Premium Nuts & Spices",
 };
 
 export default function RootLayout({

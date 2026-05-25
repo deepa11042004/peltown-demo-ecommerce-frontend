@@ -8,7 +8,7 @@ const BannerSec = () => {
   // Data for the specific featured product card
   const product = {
     id: "featured-1",
-    name: "Deluxe Roasted Salted Mixed Nuts in Sea Salt",
+    name: "PelTown Deluxe Roasted Salted Mixed Nuts in Sea Salt",
     price: "24",
     status: "New",
     image: "/Img/almonds.jpg", // Replace with your actual pouch image path
@@ -21,7 +21,7 @@ const BannerSec = () => {
       <div className="relative w-full lg:w-1/2 h-100 lg:h-auto bg-white flex items-center justify-center p-10">
         <Image
           src="/Img/banner1.webp" // Replace with your jars image
-          alt="Everace Premium Collection"
+          alt="PelTown Premium Collection"
           fill
           sizes="(min-width: 1024px) 50vw, 100vw"
           className="object-cover"

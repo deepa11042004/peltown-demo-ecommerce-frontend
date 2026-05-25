@@ -1,6 +1,5 @@
 "use client";
 import React, { useState } from 'react';
-import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
@@ -47,15 +46,10 @@ const RegisterPage = () => {
         className="w-full max-w-lg bg-[#242424] rounded-[40px] p-10 shadow-2xl border border-white/5 relative z-10"
       >
         <div className="text-center mb-10">
-          <Link href="/" className="inline-block mb-6 cursor-pointer">
-            <Image
-              src="/Img/logo.webp"
-              alt="Everace Logo"
-              width={150}
-              height={38}
-              className="brightness-0 invert hover:opacity-90 transition-opacity"
-              priority
-            />
+          <Link href="/" className="inline-flex mb-6 cursor-pointer">
+            <span className="text-[24px] font-black tracking-[-0.05em] text-white">
+              PelTown
+            </span>
           </Link>
           <h2 className="text-3xl font-black text-white tracking-tight mb-2">Create Account</h2>
           <p className="text-gray-400 font-medium">Join the premium nut collection community</p>

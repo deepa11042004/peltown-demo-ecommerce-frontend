@@ -3,11 +3,11 @@ import React, { useState } from "react";
 import {Plus, Search, Trash2, Key, CheckCircle } from "lucide-react";
 
 const initialAdmins = [
-  { id: 1, name: "Akash Sharma", email: "akash@everace.com", role: "Super Admin", status: "Active", lastActive: "Just now", avatar: "AS" },
-  { id: 2, name: "Deepak Negi", email: "deepak@everace.com", role: "Super Admin", status: "Active", lastActive: "5 mins ago", avatar: "DN" },
-  { id: 3, name: "Elena Rostova", email: "elena@everace.com", role: "Catalog Manager", status: "Active", lastActive: "2 hours ago", avatar: "ER" },
-  { id: 4, name: "Marcus Brody", email: "marcus@everace.com", role: "Support Lead", status: "Active", lastActive: "1 day ago", avatar: "MB" },
-  { id: 5, name: "Chloe Bennett", email: "chloe@everace.com", role: "Marketing Specialist", status: "Invited", lastActive: "Never (Pending)", avatar: "CB" },
+  { id: 1, name: "Akash Sharma", email: "akash@peltown.com", role: "Super Admin", status: "Active", lastActive: "Just now", avatar: "AS" },
+  { id: 2, name: "Deepak Negi", email: "deepak@peltown.com", role: "Super Admin", status: "Active", lastActive: "5 mins ago", avatar: "DN" },
+  { id: 3, name: "Elena Rostova", email: "elena@peltown.com", role: "Catalog Manager", status: "Active", lastActive: "2 hours ago", avatar: "ER" },
+  { id: 4, name: "Marcus Brody", email: "marcus@peltown.com", role: "Support Lead", status: "Active", lastActive: "1 day ago", avatar: "MB" },
+  { id: 5, name: "Chloe Bennett", email: "chloe@peltown.com", role: "Marketing Specialist", status: "Invited", lastActive: "Never (Pending)", avatar: "CB" },
 ];
 
 export default function AdminAdmins() {
@@ -168,7 +168,7 @@ export default function AdminAdmins() {
                   required
                   value={newEmail}
                   onChange={e => setNewEmail(e.target.value)}
-                  placeholder="samantha@everace.com"
+                  placeholder="samantha@peltown.com"
                   className="w-full bg-gray-50 rounded-xl px-4 py-3 border border-gray-200 focus:ring-2 focus:ring-[#facc15] outline-none"
                 />
               </div>

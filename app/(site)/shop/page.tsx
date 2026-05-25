@@ -8,7 +8,7 @@ const ShopPage = () => {
   return (
     <main className="pt-24 min-h-screen bg-[#fdfbf9]">
       {/* Top Banner */}
-      <section className="relative w-full overflow-hidden h-[360px] md:h-[450px] flex items-center justify-center">
+      <section className="relative w-full overflow-hidden h-90 md:h-112.5 flex items-center justify-center">
         <Image
           src="/Img/mockup.webp"
           alt="Shop Our Collection"
@@ -27,7 +27,7 @@ const ShopPage = () => {
             transition={{ duration: 0.6 }}
             className="text-xs md:text-sm font-black uppercase tracking-[0.4em] text-[#facc15] mb-4 block"
           >
-            100% Organic & Raw
+            PelTown 100% Organic & Raw
           </motion.span>
           
           <motion.h1
@@ -36,7 +36,7 @@ const ShopPage = () => {
             transition={{ duration: 0.6, delay: 0.1 }}
             className="text-4xl md:text-7xl font-black uppercase tracking-tighter text-white"
           >
-            The Organic Shop
+            PelTown Organic Shop
           </motion.h1>
           
           <motion.p

@@ -29,7 +29,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Load from localStorage on mount
   useEffect(() => {
     try {
-      const storedCart = localStorage.getItem("everace_cart");
+      const storedCart = localStorage.getItem("peltown_cart");
       if (storedCart) {
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setCart(JSON.parse(storedCart));
@@ -44,7 +44,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (isInitialized) {
       try {
-        localStorage.setItem("everace_cart", JSON.stringify(cart));
+        localStorage.setItem("peltown_cart", JSON.stringify(cart));
       } catch (error) {
         console.error("Failed to save cart to localStorage", error);
       }

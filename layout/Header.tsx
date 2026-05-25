@@ -1,7 +1,6 @@
 "use client";
 import React, { useState } from "react";
 import { usePathname } from "next/navigation";
-import Image from "next/image";
 import {
   User,
   ShoppingBasket,
@@ -120,15 +119,13 @@ const Header = () => {
             >
               <Menu size={24} />
             </button>
-            <Link href="/" className="cursor-pointer inline-block shrink-0">
-              <Image
-                src="/Img/logo.webp"
-                alt="Everace Logo"
-                width={130}
-                height={32}
-                className="object-contain sm:w-[140px] sm:h-[35px]"
-                priority
-              />
+            <Link
+              href="/"
+              className="cursor-pointer inline-flex shrink-0 items-center"
+            >
+              <span className="text-[24px] font-black tracking-[-0.05em] text-black sm:text-[26px]">
+                PelTown
+              </span>
             </Link>
           </div>
 
@@ -310,14 +307,14 @@ const Header = () => {
         }`}
       >
         <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-          <Link href="/" onClick={() => setIsMobileMenuOpen(false)}>
-            <Image
-              src="/Img/logo.webp"
-              alt="Everace Logo"
-              width={130}
-              height={32}
-              priority
-            />
+          <Link
+            href="/"
+            onClick={() => setIsMobileMenuOpen(false)}
+            className="inline-flex items-center"
+          >
+            <span className="text-[24px] font-black tracking-[-0.05em] text-black">
+              PelTown
+            </span>
           </Link>
           <button
             onClick={() => setIsMobileMenuOpen(false)}
