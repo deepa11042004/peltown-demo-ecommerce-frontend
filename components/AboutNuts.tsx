@@ -57,6 +57,7 @@ const AboutNutsSec = () => {
                     src={`/Img/About${nut.id}.webp`}
                     alt={nut.title}
                     fill
+                    sizes="128px"
                     className="object-contain group-hover:scale-110 transition-transform duration-500"
                   />
                 </div>

@@ -13,6 +13,7 @@ const BestsellerPage = () => {
           src="/Img/mockup.webp"
           alt="Everace Bestsellers"
           fill
+          sizes="100vw"
           className="object-cover z-0"
           priority
         />

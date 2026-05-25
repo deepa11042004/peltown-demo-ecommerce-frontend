@@ -30,6 +30,7 @@ const ContactPage = () => {
           src="/Img/mockup.webp"
           alt="Contact Everace"
           fill
+          sizes="100vw"
           className="object-cover z-0"
           priority
         />

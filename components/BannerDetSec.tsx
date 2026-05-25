@@ -11,6 +11,7 @@ const BannerDetSec = () => {
         src="/Img/mockup.webp"
         alt="Everace Premium Collection"
         fill
+        sizes="100vw"
         className="object-cover z-0"
         priority
       />

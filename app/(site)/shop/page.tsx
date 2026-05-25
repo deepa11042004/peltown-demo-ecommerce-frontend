@@ -13,6 +13,7 @@ const ShopPage = () => {
           src="/Img/mockup.webp"
           alt="Shop Our Collection"
           fill
+          sizes="100vw"
           className="object-cover z-0"
           priority
         />

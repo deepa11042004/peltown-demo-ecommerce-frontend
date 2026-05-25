@@ -46,6 +46,7 @@ const MarqueSec = () => {
                   src={item.image}
                   alt={item.title}
                   fill
+                  sizes="120px"
                   className="object-contain transition-transform duration-500 group-hover:scale-110 group-hover:rotate-6 drop-shadow-2xl"
                   priority
                 />

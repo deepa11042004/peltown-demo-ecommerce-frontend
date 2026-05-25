@@ -90,7 +90,13 @@ export default function AdminInventory() {
                     <div className="flex items-center gap-4">
                       <div className="relative w-14 h-14 rounded-2xl overflow-hidden bg-gray-100 border border-gray-100 shrink-0 flex items-center justify-center">
                         {item.image ? (
-                          <Image src={item.image} alt={item.name} fill className="object-cover" />
+                          <Image
+                            src={item.image}
+                            alt={item.name}
+                            fill
+                            sizes="56px"
+                            className="object-cover"
+                          />
                         ) : (
                           <Package className="text-gray-400" size={24} />
                         )}

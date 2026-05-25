@@ -109,6 +109,7 @@ export default function WishlistPage() {
                         src={item.image}
                         alt={item.name}
                         fill
+                        sizes="100vw"
                         className="object-cover group-hover:scale-105 transition-transform duration-500"
                       />
                     </div>

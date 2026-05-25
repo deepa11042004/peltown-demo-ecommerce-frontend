@@ -626,7 +626,14 @@ export default function AddProductPage() {
             <div className="space-y-4">
               <div className="relative w-full aspect-square rounded-3xl overflow-hidden bg-gray-100 border-2 border-dashed border-gray-200 group flex items-center justify-center">
                 {imagePreview ? (
-                  <Image src={imagePreview} alt="Preview" fill unoptimized className="object-cover" />
+                  <Image
+                    src={imagePreview}
+                    alt="Preview"
+                    fill
+                    sizes="100vw"
+                    unoptimized
+                    className="object-cover"
+                  />
                 ) : (
                   <div className="text-center p-4">
                     <Upload size={32} className="mx-auto text-gray-400 mb-2" />

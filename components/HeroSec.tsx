@@ -20,6 +20,7 @@ const HeroSec = () => {
             src="/Img/hero.webp"
             alt="Hero Background"
             fill
+            sizes="100vw"
             priority
             className="object-cover"
           />

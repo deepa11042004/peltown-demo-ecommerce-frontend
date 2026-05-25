@@ -44,6 +44,7 @@ export default function AboutPage() {
           src="/Img/hero.webp"
           alt="Everace Heritage"
           fill
+          sizes="100vw"
           className="object-cover z-0"
           priority
         />
@@ -106,7 +107,13 @@ export default function AboutPage() {
           viewport={{ once: true }}
           className="relative aspect-4/3 rounded-4xl overflow-hidden shadow-2xl border border-gray-100"
         >
-          <Image src="/Img/gallery1.jpeg" alt="Harvesting in Kashmir" fill className="object-cover" />
+          <Image
+            src="/Img/gallery1.jpeg"
+            alt="Harvesting in Kashmir"
+            fill
+            sizes="100vw"
+            className="object-cover"
+          />
         </motion.div>
 
         <motion.div

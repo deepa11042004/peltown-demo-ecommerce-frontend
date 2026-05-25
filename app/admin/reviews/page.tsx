@@ -106,7 +106,13 @@ export default function AdminReviews() {
                     <td className="px-8 py-5">
                       <div className="flex items-center gap-3">
                         <div className="relative w-10 h-10 rounded-xl overflow-hidden bg-gray-100 border border-gray-200 shrink-0">
-                          <Image src={review.image} alt={review.product} fill className="object-cover" />
+                          <Image
+                            src={review.image}
+                            alt={review.product}
+                            fill
+                            sizes="40px"
+                            className="object-cover"
+                          />
                         </div>
                         <span className="font-bold text-gray-800 text-sm">{review.product}</span>
                       </div>

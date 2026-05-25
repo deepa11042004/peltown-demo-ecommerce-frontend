@@ -249,7 +249,13 @@ export default function OrderDetailsPage() {
                 <div key={item.id} className="py-4 flex items-center justify-between gap-4 first:pt-0 last:pb-0">
                   <div className="flex items-center gap-4 flex-1">
                     <div className="relative w-20 h-20 bg-gray-50 rounded-2xl overflow-hidden border border-gray-100 shrink-0">
-                      <Image src={item.image} alt={item.name} fill className="object-cover" />
+                      <Image
+                        src={item.image}
+                        alt={item.name}
+                        fill
+                        sizes="80px"
+                        className="object-cover"
+                      />
                     </div>
                     <div>
                       <h3 className="font-black text-gray-900 text-sm sm:text-base uppercase tracking-tight">

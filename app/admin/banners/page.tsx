@@ -70,7 +70,13 @@ export default function AdminBanners() {
         {banners.map((banner) => (
           <div key={banner.id} className="bg-white rounded-4xl border border-gray-100 shadow-xl overflow-hidden flex flex-col group">
             <div className="relative w-full h-56 bg-gray-100 overflow-hidden">
-              <Image src={banner.image} alt={banner.title} fill className="object-cover group-hover:scale-105 transition-transform duration-500" />
+              <Image
+                src={banner.image}
+                alt={banner.title}
+                fill
+                sizes="100vw"
+                className="object-cover group-hover:scale-105 transition-transform duration-500"
+              />
               <div className="absolute inset-0 bg-linear-to-t from-black/80 via-black/30 to-transparent" />
               <div className="absolute top-4 right-4 flex gap-2">
                 <span className="px-3 py-1 bg-black/60 backdrop-blur-md text-[#facc15] font-black text-[10px] uppercase tracking-wider rounded-full border border-white/10">

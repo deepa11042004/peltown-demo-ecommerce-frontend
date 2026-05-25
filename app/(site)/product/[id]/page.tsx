@@ -172,7 +172,14 @@ export default function ProductDetailPage() {
               </span>
             )}
             <div className="relative w-full h-full">
-              <Image src={product.image} alt={product.name} fill className="object-cover rounded-3xl" priority />
+              <Image
+                src={product.image}
+                alt={product.name}
+                fill
+                sizes="100vw"
+                className="object-cover rounded-3xl"
+                priority
+              />
             </div>
           </motion.div>
 
@@ -405,6 +412,7 @@ export default function ProductDetailPage() {
                       src={rec.image}
                       alt={rec.name}
                       fill
+                      sizes="100vw"
                       className="object-cover group-hover:scale-110 transition-transform duration-500"
                     />
                   </Link>

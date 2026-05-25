@@ -132,6 +132,7 @@ const CartPage = () => {
                                   src={item.image}
                                   alt={item.name}
                                   fill
+                                  sizes="80px"
                                   className="object-cover group-hover:scale-105 transition-transform"
                                 />
                               </div>
