@@ -39,7 +39,7 @@ const LoginPage = () => {
       >
         <div className="text-center mb-10">
           <Link href="/" className="inline-flex mb-6 cursor-pointer">
-            <span className="text-[24px] font-black tracking-[-0.05em] text-white">
+            <span className="text-[24px] font-black tracking-\[-0.05em] text-white">
               PelTown
             </span>
           </Link>

@@ -123,7 +123,7 @@ const Header = () => {
               href="/"
               className="cursor-pointer inline-flex shrink-0 items-center"
             >
-              <span className="text-[24px] font-black tracking-[-0.05em] text-black sm:text-[26px]">
+              <span className="text-[24px] font-black tracking-\[-0.05em] text-black sm:text-[26px]">
                 PelTown
               </span>
             </Link>
@@ -230,7 +230,7 @@ const Header = () => {
                   title={user?.firstName || "Profile"}
                 >
                   <User size={16} className="text-yellow-600 shrink-0" />
-                  <span className="hidden sm:inline uppercase text-xs truncate max-w-[120px]">
+                  <span className="hidden sm:inline uppercase text-xs truncate max-w-\[120px]">
                     {user?.firstName || "ADMIN"}
                   </span>
                 </Link>
@@ -312,7 +312,7 @@ const Header = () => {
             onClick={() => setIsMobileMenuOpen(false)}
             className="inline-flex items-center"
           >
-            <span className="text-[24px] font-black tracking-[-0.05em] text-black">
+            <span className="text-[24px] font-black tracking-\[-0.05em] text-black">
               PelTown
             </span>
           </Link>
