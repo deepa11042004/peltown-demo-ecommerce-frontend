@@ -7,8 +7,8 @@ import { ChevronLeft, ChevronRight, Eye, Heart } from "lucide-react";
 import { FaStar, FaStarHalfAlt, FaRegStar } from "react-icons/fa";
 import { useCart } from "@/context/CartContext";
 import { useWishlist } from "@/context/WishlistContext";
-import { mockProducts } from "@/lib/mockProducts";
 import { productApi } from "@/lib/api";
+import { buildSelectionKey } from "@/lib/shopping";
 import {
   ApiProduct,
   mapApiProductToUiProduct,
@@ -22,29 +22,14 @@ const ProductSec = () => {
   const [itemsPerPage, setItemsPerPage] = useState(4);
   const [products, setProducts] = useState<UiProduct[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
     let mounted = true;
 
-    const fallbackProducts = mockProducts.map((product) => ({
-      id: product.id,
-      slug: String(product.id),
-      name: product.name,
-      description: product.description,
-      shortDescription: product.description,
-      price: product.price,
-      oldPrice: product.oldPrice,
-      stock: 0,
-      category: product.category,
-      status: product.status || "In Stock",
-      image: product.image,
-      rating: product.rating,
-      benefits: product.benefits,
-      specs: product.specs,
-    }));
-
     const loadProducts = async () => {
       try {
+        setLoadError("");
         const response = await productApi.list({
           page: 1,
           limit: 60,
@@ -59,10 +44,11 @@ const ProductSec = () => {
           return;
         }
 
-        setProducts(mappedProducts.length > 0 ? mappedProducts : fallbackProducts);
+        setProducts(mappedProducts);
       } catch {
         if (mounted) {
-          setProducts(fallbackProducts);
+          setProducts([]);
+          setLoadError("Unable to load products right now.");
         }
       } finally {
         if (mounted) {
@@ -166,32 +152,48 @@ const ProductSec = () => {
             </div>
           )}
 
-          <motion.div
-            drag="x"
-            dragConstraints={{ left: 0, right: 0 }}
-            onDragEnd={handleDragEnd}
-            animate={{ x: `-${safeCurrentIndex * 100}%` }}
-            transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="flex touch-pan-y"
-          >
-            {/* Pages of Products */}
-            {[...Array(totalPages)].map((_, pageIndex) => (
-              <div
-                key={pageIndex}
-                className={`min-w-full grid gap-6 sm:gap-8 px-2 ${
-                  itemsPerPage === 1
-                    ? "grid-cols-1"
-                    : itemsPerPage === 2
-                      ? "grid-cols-2"
-                      : "grid-cols-4"
-                }`}
-              >
-                {products
-                  .slice(
-                    pageIndex * itemsPerPage,
-                    (pageIndex + 1) * itemsPerPage,
-                  )
-                  .map((product) => (
+          {!loading && loadError && (
+            <div className="text-center text-sm font-bold text-red-500 uppercase tracking-widest py-6">
+              {loadError}
+            </div>
+          )}
+
+          {!loading && !loadError && products.length === 0 && (
+            <div className="text-center text-sm font-bold text-gray-500 uppercase tracking-widest py-6">
+              No active products available right now.
+            </div>
+          )}
+
+          {products.length > 0 && (
+            <motion.div
+              drag="x"
+              dragConstraints={{ left: 0, right: 0 }}
+              onDragEnd={handleDragEnd}
+              animate={{ x: `-${safeCurrentIndex * 100}%` }}
+              transition={{ type: "spring", stiffness: 300, damping: 30 }}
+              className="flex touch-pan-y"
+            >
+              {/* Pages of Products */}
+              {[...Array(totalPages)].map((_, pageIndex) => (
+                <div
+                  key={pageIndex}
+                  className={`min-w-full grid gap-6 sm:gap-8 px-2 ${
+                    itemsPerPage === 1
+                      ? "grid-cols-1"
+                      : itemsPerPage === 2
+                        ? "grid-cols-2"
+                        : "grid-cols-4"
+                  }`}
+                >
+                  {products
+                    .slice(
+                      pageIndex * itemsPerPage,
+                      (pageIndex + 1) * itemsPerPage,
+                    )
+                    .map((product) => {
+                      const selectionId = buildSelectionKey(Number(product.id), product.defaultVariantId);
+
+                      return (
                     <motion.div
                       key={product.id}
                       initial={{ opacity: 0, y: 20 }}
@@ -217,19 +219,20 @@ const ProductSec = () => {
                           <button
                             onClick={() =>
                               toggleWishlist({
-                                id: `prod-${product.id}`,
+                                id: selectionId,
                                 name: product.name,
                                 price: product.price,
                                 image: product.image,
+                                variantId: product.defaultVariantId,
                               })
                             }
                             className={`p-2 rounded-full shadow-md transition-colors cursor-pointer ${
-                              isInWishlist(`prod-${product.id}`)
+                              isInWishlist(selectionId)
                                 ? "bg-red-500 text-white hover:bg-red-600"
                                 : "bg-white text-gray-800 hover:bg-[#facc15]"
                             }`}
                             title={
-                              isInWishlist(`prod-${product.id}`)
+                              isInWishlist(selectionId)
                                 ? "Remove from Wishlist"
                                 : "Add to Wishlist"
                             }
@@ -237,7 +240,7 @@ const ProductSec = () => {
                             <Heart
                               size={16}
                               className={
-                                isInWishlist(`prod-${product.id}`) ? "fill-white text-red-500" : ""
+                                isInWishlist(selectionId) ? "fill-white text-red-500" : ""
                               }
                             />
                           </button>
@@ -296,31 +299,35 @@ const ProductSec = () => {
 
                       {/* Action Button (Pill Style) */}
                       <button 
-                        onClick={() => addToCart({ id: `prod-${product.id}`, name: product.name, price: product.price, image: product.image })}
+                        onClick={() => addToCart({ id: selectionId, name: product.name, price: product.price, image: product.image, variantId: product.defaultVariantId })}
                         className="w-full py-3 sm:py-4 border-2 border-gray-900 rounded-full text-[10px] sm:text-[11px] font-black uppercase tracking-[0.2em] hover:bg-gray-900 hover:text-white transition-all duration-300 shadow-sm hover:shadow-lg">
                         Add to Cart
                       </button>
                     </motion.div>
-                  ))}
-              </div>
-            ))}
-          </motion.div>
+                    );
+                  })}
+                </div>
+              ))}
+            </motion.div>
+          )}
         </div>
 
         {/* Carousel Indicator */}
-        <div className="flex justify-center gap-3 mt-12 sm:mt-16">
-          {[...Array(totalPages)].map((_, i) => (
-            <button
-              key={i}
-              onClick={() => setCurrentIndex(i)}
-              className={`h-2 rounded-full transition-all duration-500 ${
-                safeCurrentIndex === i
-                  ? "w-8 sm:w-12 bg-black"
-                  : "w-2 bg-gray-200 hover:bg-gray-400"
-              }`}
-            />
-          ))}
-        </div>
+        {products.length > 0 && (
+          <div className="flex justify-center gap-3 mt-12 sm:mt-16">
+            {[...Array(totalPages)].map((_, i) => (
+              <button
+                key={i}
+                onClick={() => setCurrentIndex(i)}
+                className={`h-2 rounded-full transition-all duration-500 ${
+                  safeCurrentIndex === i
+                    ? "w-8 sm:w-12 bg-black"
+                    : "w-2 bg-gray-200 hover:bg-gray-400"
+                }`}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );

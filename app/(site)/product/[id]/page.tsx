@@ -18,31 +18,9 @@ import {
   ArrowLeftRight,
 } from "lucide-react";
 import { useCart } from "@/context/CartContext";
-import { mockProducts } from "@/lib/mockProducts";
-import { toast } from "react-hot-toast";
 import { productApi } from "@/lib/api";
+import { buildSelectionKey } from "@/lib/shopping";
 import { ApiProduct, mapApiProductToUiProduct, UiProduct } from "@/lib/productMapping";
-
-const toFallbackProduct = (id: number) => {
-  const selected = mockProducts.find((product) => Number(product.id) === id) || mockProducts[0];
-
-  return {
-    id: selected.id,
-    slug: String(selected.id),
-    name: selected.name,
-    description: selected.description,
-    shortDescription: selected.description,
-    price: selected.price,
-    oldPrice: selected.oldPrice,
-    stock: 0,
-    category: selected.category,
-    status: selected.status || "In Stock",
-    image: selected.image,
-    rating: selected.rating,
-    benefits: selected.benefits,
-    specs: selected.specs,
-  } as UiProduct;
-};
 
 export default function ProductDetailPage() {
   const params = useParams();
@@ -55,6 +33,7 @@ export default function ProductDetailPage() {
   const [product, setProduct] = useState<UiProduct | null>(null);
   const [recommendedProducts, setRecommendedProducts] = useState<UiProduct[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
     let mounted = true;
@@ -63,6 +42,7 @@ export default function ProductDetailPage() {
       setLoading(true);
 
       try {
+        setLoadError("");
         const [productResponse, recommendationsResponse] = await Promise.all([
           productApi.getById(productId),
           productApi.list({
@@ -93,14 +73,9 @@ export default function ProductDetailPage() {
           return;
         }
 
-        const fallbackProduct = toFallbackProduct(productId);
-        const fallbackRecommendations = mockProducts
-          .filter((item) => String(item.id) !== String(fallbackProduct.id))
-          .slice(0, 4)
-          .map((item) => toFallbackProduct(Number(item.id)));
-
-        setProduct(fallbackProduct);
-        setRecommendedProducts(fallbackRecommendations);
+        setProduct(null);
+        setRecommendedProducts([]);
+        setLoadError("This product is unavailable right now.");
       } finally {
         if (mounted) {
           setLoading(false);
@@ -123,21 +98,39 @@ export default function ProductDetailPage() {
       return;
     }
 
-    for (let i = 0; i < quantity; i++) {
-      addToCart({
-        id: `prod-${product.id}`,
-        name: product.name,
-        price: product.price,
-        image: product.image,
-      });
-    }
-    toast.success(`Added ${quantity} of ${product.name} to cart!`);
+    void addToCart({
+      id: buildSelectionKey(Number(product.id), product.defaultVariantId),
+      name: product.name,
+      price: product.price,
+      image: product.image,
+      quantity,
+      variantId: product.defaultVariantId,
+    });
   };
 
-  if (loading || !product) {
+  if (loading) {
     return (
       <div className="bg-[#fdfbf9] min-h-screen py-12 px-6 sm:px-12 flex items-center justify-center">
         <div className="text-sm font-bold text-gray-500 uppercase tracking-widest">Loading product...</div>
+      </div>
+    );
+  }
+
+  if (!product) {
+    return (
+      <div className="bg-[#fdfbf9] min-h-screen py-12 px-6 sm:px-12 flex items-center justify-center">
+        <div className="max-w-xl w-full bg-white rounded-[40px] border border-gray-100 shadow-xl p-10 text-center space-y-4">
+          <h1 className="text-2xl font-black text-gray-900 uppercase tracking-tight">Product Unavailable</h1>
+          <p className="text-sm font-bold text-gray-500 uppercase tracking-widest">
+            {loadError || "This product could not be loaded."}
+          </p>
+          <Link
+            href="/shop"
+            className="inline-flex items-center justify-center rounded-full bg-[#facc15] px-6 py-3 text-xs font-black uppercase tracking-[0.2em] text-black transition-all duration-300 hover:bg-black hover:text-white"
+          >
+            Back to Shop
+          </Link>
+        </div>
       </div>
     );
   }

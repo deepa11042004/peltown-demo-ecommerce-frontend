@@ -7,8 +7,8 @@ import { FaStar, FaStarHalfAlt, FaRegStar } from "react-icons/fa";
 import { Eye, Heart } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { useWishlist } from "@/context/WishlistContext";
-import { mockProducts } from "@/lib/mockProducts";
 import { productApi } from "@/lib/api";
+import { buildSelectionKey } from "@/lib/shopping";
 import { ApiProduct, mapApiProductToUiProduct, UiProduct } from "@/lib/productMapping";
 
 interface AllProductProps {
@@ -21,29 +21,14 @@ const AllProduct: React.FC<AllProductProps> = ({ showFilter = false }) => {
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [products, setProducts] = useState<UiProduct[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
     let mounted = true;
 
-    const fallbackProducts = mockProducts.map((product) => ({
-      id: product.id,
-      slug: String(product.id),
-      name: product.name,
-      description: product.description,
-      shortDescription: product.description,
-      price: product.price,
-      oldPrice: product.oldPrice,
-      stock: 0,
-      category: product.category,
-      status: product.status || "In Stock",
-      image: product.image,
-      rating: product.rating,
-      benefits: product.benefits,
-      specs: product.specs,
-    }));
-
     const loadProducts = async () => {
       try {
+        setLoadError("");
         const response = await productApi.list({
           page: 1,
           limit: 60,
@@ -58,10 +43,11 @@ const AllProduct: React.FC<AllProductProps> = ({ showFilter = false }) => {
           return;
         }
 
-        setProducts(mappedProducts.length > 0 ? mappedProducts : fallbackProducts);
+        setProducts(mappedProducts);
       } catch {
         if (mounted) {
-          setProducts(fallbackProducts);
+          setProducts([]);
+          setLoadError("Unable to load products right now.");
         }
       } finally {
         if (mounted) {
@@ -134,20 +120,35 @@ const AllProduct: React.FC<AllProductProps> = ({ showFilter = false }) => {
             </div>
           )}
 
+          {!loading && loadError && (
+            <div className="col-span-full text-center text-sm font-bold text-red-500 uppercase tracking-widest py-6">
+              {loadError}
+            </div>
+          )}
+
+          {!loading && !loadError && filteredProducts.length === 0 && (
+            <div className="col-span-full text-center text-sm font-bold text-gray-500 uppercase tracking-widest py-6">
+              No active products available right now.
+            </div>
+          )}
+
           <AnimatePresence>
-            {filteredProducts.map((product) => (
-              <motion.div
-                key={product.id}
-                layout
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                transition={{ duration: 0.3 }}
-                whileHover={{ y: -8 }}
-                className="group bg-white rounded-4xl p-5 flex flex-col items-center text-center shadow-sm border border-transparent hover:border-yellow-100 hover:shadow-xl transition-all duration-300 select-none"
-              >
-                {/* Image Container with Floating Actions */}
-                <div className="relative w-full aspect-square bg-[#f8f8f8] rounded-3xl overflow-hidden mb-6 flex items-center justify-center">
+            {filteredProducts.map((product) => {
+              const selectionId = buildSelectionKey(Number(product.id), product.defaultVariantId);
+
+              return (
+                <motion.div
+                  key={product.id}
+                  layout
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  transition={{ duration: 0.3 }}
+                  whileHover={{ y: -8 }}
+                  className="group bg-white rounded-4xl p-5 flex flex-col items-center text-center shadow-sm border border-transparent hover:border-yellow-100 hover:shadow-xl transition-all duration-300 select-none"
+                >
+                  {/* Image Container with Floating Actions */}
+                  <div className="relative w-full aspect-square bg-[#f8f8f8] rounded-3xl overflow-hidden mb-6 flex items-center justify-center">
                   {product.status && (
                     <span className="absolute top-4 left-4 bg-[#facc15] text-[11px] font-black px-3 py-1 rounded-full uppercase z-10 shadow-sm">
                       {product.status}
@@ -165,19 +166,20 @@ const AllProduct: React.FC<AllProductProps> = ({ showFilter = false }) => {
                     <button
                       onClick={() =>
                         toggleWishlist({
-                          id: `all-${product.id}`,
+                          id: selectionId,
                           name: product.name,
                           price: product.price,
                           image: product.image,
+                          variantId: product.defaultVariantId,
                         })
                       }
                       className={`p-2 rounded-full shadow-md transition-colors cursor-pointer ${
-                        isInWishlist(`all-${product.id}`)
+                        isInWishlist(selectionId)
                           ? "bg-red-500 text-white hover:bg-red-600"
                           : "bg-white text-gray-800 hover:bg-[#facc15]"
                       }`}
                       title={
-                        isInWishlist(`all-${product.id}`)
+                        isInWishlist(selectionId)
                           ? "Remove from Wishlist"
                           : "Add to Wishlist"
                       }
@@ -185,7 +187,7 @@ const AllProduct: React.FC<AllProductProps> = ({ showFilter = false }) => {
                       <Heart
                         size={16}
                         className={
-                          isInWishlist(`all-${product.id}`) ? "fill-white" : ""
+                          isInWishlist(selectionId) ? "fill-white" : ""
                         }
                       />
                     </button>
@@ -251,18 +253,20 @@ const AllProduct: React.FC<AllProductProps> = ({ showFilter = false }) => {
                 <button
                   onClick={() =>
                     addToCart({
-                      id: `all-${product.id}`,
+                      id: selectionId,
                       name: product.name,
                       price: product.price,
                       image: product.image,
+                      variantId: product.defaultVariantId,
                     })
                   }
                   className="w-full py-3.5 border-2 border-gray-900 rounded-full text-[11px] font-black uppercase tracking-widest hover:bg-gray-900 hover:text-white transition-all cursor-pointer shadow-xs hover:shadow-md"
                 >
                   Add to Cart
                 </button>
-              </motion.div>
-            ))}
+                </motion.div>
+              );
+            })}
           </AnimatePresence>
         </motion.div>
       </div>

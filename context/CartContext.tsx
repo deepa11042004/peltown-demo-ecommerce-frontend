@@ -1,100 +1,137 @@
 "use client";
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
 import toast from "react-hot-toast";
+import { cartApi } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
+import {
+  ContextCartItem,
+  mapCartItem,
+  normalizeSelectionId,
+  normalizeSelectionInput,
+  UiSelectionInput,
+} from "@/lib/shopping";
 
-export interface CartItem {
-  id: string | number;
-  name: string;
-  price: number;
-  image: string;
-  quantity: number;
-}
+export type CartItem = ContextCartItem;
 
 interface CartContextType {
   cart: CartItem[];
-  addToCart: (item: { id: string | number; name: string; price: string | number; image: string }) => void;
-  removeFromCart: (id: string | number) => void;
-  updateQuantity: (id: string | number, quantity: number) => void;
-  clearCart: () => void;
+  addToCart: (item: UiSelectionInput) => Promise<void>;
+  removeFromCart: (id: string | number) => Promise<void>;
+  updateQuantity: (id: string | number, quantity: number) => Promise<void>;
+  clearCart: () => Promise<void>;
+  refreshCart: () => Promise<void>;
   cartTotal: number;
   itemCount: number;
+  loading: boolean;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [isInitialized, setIsInitialized] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const { isAuthenticated, user } = useAuth();
 
-  // Load from localStorage on mount
-  useEffect(() => {
+  const applyCartResponse = (payload: unknown) => {
+    const cartData = (payload as { cart?: { items?: unknown[] } } | undefined)?.cart;
+    const items = Array.isArray(cartData?.items) ? cartData.items : [];
+
+    setCart(items.map((item) => mapCartItem(item as Parameters<typeof mapCartItem>[0])));
+  };
+
+  const refreshCart = async () => {
     try {
-      const storedCart = localStorage.getItem("peltown_cart");
-      if (storedCart) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setCart(JSON.parse(storedCart));
-      }
+      setLoading(true);
+      const response = await cartApi.get();
+      applyCartResponse(response.data?.data);
     } catch (error) {
-      console.error("Failed to load cart from localStorage", error);
+      console.error("Failed to load cart", error);
+      setCart([]);
+    } finally {
+      setLoading(false);
     }
-    setIsInitialized(true);
-  }, []);
+  };
 
-  // Save to localStorage on cart change
   useEffect(() => {
-    if (isInitialized) {
-      try {
-        localStorage.setItem("peltown_cart", JSON.stringify(cart));
-      } catch (error) {
-        console.error("Failed to save cart to localStorage", error);
-      }
-    }
-  }, [cart, isInitialized]);
+    void refreshCart();
+  }, [isAuthenticated, user?.id]);
 
-  const addToCart = (item: { id: string | number; name: string; price: string | number; image: string }) => {
-    const existingItem = cart.find((cartItem) => cartItem.id === item.id);
-    if (existingItem) {
-      toast.success(`Increased ${item.name} quantity!`, { icon: "🛒", id: `toast-${item.id}` });
-    } else {
-      toast.success(`${item.name} added to cart!`, { icon: "🛒", id: `toast-${item.id}` });
-    }
+  const addToCart = async (item: UiSelectionInput) => {
+    try {
+      const selection = normalizeSelectionInput(item);
+      const existingItem = cart.find(
+        (cartItem) => cartItem.id === normalizeSelectionId(item.id, item.variantId ?? null),
+      );
+      const response = await cartApi.addItem({
+        productId: selection.productId,
+        variantId: selection.variantId,
+        quantity: selection.quantity,
+      });
 
-    setCart((prevCart) => {
-      const isExisting = prevCart.find((cartItem) => cartItem.id === item.id);
-      const itemPrice = typeof item.price === "string" ? parseFloat(item.price) : item.price;
-      
-      if (isExisting) {
-        return prevCart.map((cartItem) =>
-          cartItem.id === item.id
-            ? { ...cartItem, quantity: cartItem.quantity + 1 }
-            : cartItem
-        );
+      applyCartResponse(response.data?.data);
+
+      if (existingItem) {
+        toast.success(`Increased ${selection.name} quantity!`, {
+          icon: "🛒",
+          id: `toast-${selection.productId}`,
+        });
       } else {
-        return [...prevCart, { id: item.id, name: item.name, price: itemPrice, image: item.image, quantity: 1 }];
+        toast.success(`${selection.name} added to cart!`, {
+          icon: "🛒",
+          id: `toast-${selection.productId}`,
+        });
       }
-    });
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || error.message || "Unable to add item to cart");
+    }
   };
 
-  const removeFromCart = (id: string | number) => {
-    setCart((prevCart) => prevCart.filter((cartItem) => cartItem.id !== id));
-    toast.success("Item removed from cart", { icon: "🗑️" });
-  };
+  const removeFromCart = async (id: string | number) => {
+    const normalizedId = normalizeSelectionId(id);
+    const existingItem = cart.find((cartItem) => cartItem.id === normalizedId);
 
-  const updateQuantity = (id: string | number, quantity: number) => {
-    if (quantity <= 0) {
-      removeFromCart(id);
+    if (!existingItem) {
       return;
     }
-    setCart((prevCart) =>
-      prevCart.map((cartItem) =>
-        cartItem.id === id ? { ...cartItem, quantity } : cartItem
-      )
-    );
+
+    try {
+      const response = await cartApi.removeItem(existingItem.cartItemId);
+      applyCartResponse(response.data?.data);
+      toast.success("Item removed from cart", { icon: "🗑️" });
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || error.message || "Unable to remove item");
+    }
   };
 
-  const clearCart = () => {
-    setCart([]);
-    toast.success("Cart cleared", { icon: "🧹" });
+  const updateQuantity = async (id: string | number, quantity: number) => {
+    if (quantity <= 0) {
+      await removeFromCart(id);
+      return;
+    }
+
+    const normalizedId = normalizeSelectionId(id);
+    const existingItem = cart.find((cartItem) => cartItem.id === normalizedId);
+
+    if (!existingItem) {
+      return;
+    }
+
+    try {
+      const response = await cartApi.updateItem(existingItem.cartItemId, { quantity });
+      applyCartResponse(response.data?.data);
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || error.message || "Unable to update quantity");
+    }
+  };
+
+  const clearCart = async () => {
+    try {
+      const response = await cartApi.clear();
+      applyCartResponse(response.data?.data);
+      toast.success("Cart cleared", { icon: "🧹" });
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || error.message || "Unable to clear cart");
+    }
   };
 
   const cartTotal = cart.reduce((total, item) => total + item.price * item.quantity, 0);
@@ -108,8 +145,10 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         removeFromCart,
         updateQuantity,
         clearCart,
+        refreshCart,
         cartTotal,
         itemCount,
+        loading,
       }}
     >
       {children}

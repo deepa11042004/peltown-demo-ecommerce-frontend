@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 type RouteContext = {
-  params: Promise<{ path: string[] }>;
+  params: Promise<{ path?: string[] }>;
 };
 
 const METHODS_WITH_BODY = new Set(["POST", "PUT", "PATCH", "DELETE"]);
@@ -14,11 +14,6 @@ const getApiBaseUrl = () => {
   }
 
   return value.endsWith("/") ? value.slice(0, -1) : value;
-};
-
-const buildTargetUrl = (baseUrl: string, segments: string[], search: string) => {
-  const encodedPath = segments.map((segment) => encodeURIComponent(segment)).join("/");
-  return `${baseUrl}/api/v1/auth/${encodedPath}${search}`;
 };
 
 const copySetCookieHeaders = (upstream: Response, responseHeaders: Headers) => {
@@ -40,7 +35,7 @@ const copySetCookieHeaders = (upstream: Response, responseHeaders: Headers) => {
   }
 };
 
-const proxyAuthRequest = async (request: NextRequest, context: RouteContext) => {
+const proxyCartRequest = async (request: NextRequest, context: RouteContext) => {
   const apiBaseUrl = getApiBaseUrl();
 
   if (!apiBaseUrl) {
@@ -53,16 +48,10 @@ const proxyAuthRequest = async (request: NextRequest, context: RouteContext) => 
   }
 
   const { path } = await context.params;
-  if (!path || path.length === 0) {
-    return NextResponse.json(
-      {
-        message: "Missing auth path",
-      },
-      { status: 400 },
-    );
-  }
-
-  const targetUrl = buildTargetUrl(apiBaseUrl, path, request.nextUrl.search);
+  const pathnameSuffix = path && path.length > 0
+    ? `/${path.map((segment) => encodeURIComponent(segment)).join("/")}`
+    : "";
+  const targetUrl = `${apiBaseUrl}/api/v1/cart${pathnameSuffix}${request.nextUrl.search}`;
   const requestHeaders = new Headers();
 
   const incomingContentType = request.headers.get("content-type");
@@ -135,7 +124,7 @@ const proxyAuthRequest = async (request: NextRequest, context: RouteContext) => 
   } catch (error) {
     return NextResponse.json(
       {
-        message: "Unable to reach auth service",
+        message: "Unable to reach cart service",
         error: error instanceof Error ? error.message : "Unknown error",
       },
       { status: 502 },
@@ -146,25 +135,25 @@ const proxyAuthRequest = async (request: NextRequest, context: RouteContext) => 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest, context: RouteContext) {
-  return proxyAuthRequest(request, context);
+  return proxyCartRequest(request, context);
 }
 
 export async function POST(request: NextRequest, context: RouteContext) {
-  return proxyAuthRequest(request, context);
+  return proxyCartRequest(request, context);
 }
 
 export async function PUT(request: NextRequest, context: RouteContext) {
-  return proxyAuthRequest(request, context);
+  return proxyCartRequest(request, context);
 }
 
 export async function PATCH(request: NextRequest, context: RouteContext) {
-  return proxyAuthRequest(request, context);
+  return proxyCartRequest(request, context);
 }
 
 export async function DELETE(request: NextRequest, context: RouteContext) {
-  return proxyAuthRequest(request, context);
+  return proxyCartRequest(request, context);
 }
 
 export async function OPTIONS(request: NextRequest, context: RouteContext) {
-  return proxyAuthRequest(request, context);
+  return proxyCartRequest(request, context);
 }

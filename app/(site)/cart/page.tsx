@@ -9,14 +9,13 @@ import toast from "react-hot-toast";
 import { mockProducts } from "@/lib/mockProducts";
 
 const CartPage = () => {
-  const { cart, removeFromCart, updateQuantity, clearCart, cartTotal, itemCount } = useCart();
+  const { cart, removeFromCart, updateQuantity, clearCart, cartTotal, itemCount, loading } = useCart();
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [expandedId, setExpandedId] = useState<string | number | null>(null);
 
-  const getProduct = (id: string | number) => {
-    const cleanId = String(id).replace("all-", "").replace("prod-", "");
-    return mockProducts.find((p) => String(p.id) === cleanId);
+  const getProduct = (productId: string | number) => {
+    return mockProducts.find((p) => String(p.id) === String(productId));
   };
 
   const handleCheckout = () => {
@@ -35,7 +34,7 @@ const CartPage = () => {
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="max-w-md w-full bg-white rounded-[32px] p-10 text-center shadow-2xl border border-yellow-100"
+          className="max-w-md w-full bg-white rounded-4xl p-10 text-center shadow-2xl border border-yellow-100"
         >
           <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6 text-green-600">
             <CheckCircle2 size={40} />
@@ -78,11 +77,21 @@ const CartPage = () => {
 
         <AnimatePresence mode="wait">
           {cart.length === 0 ? (
+            loading ? (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="bg-white rounded-4xl p-16 text-center shadow-sm border border-gray-100 max-w-2xl mx-auto my-12"
+              >
+                <div className="text-sm font-bold text-gray-500 uppercase tracking-widest">Loading cart...</div>
+              </motion.div>
+            ) : (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
-              className="bg-white rounded-[32px] p-16 text-center shadow-sm border border-gray-100 max-w-2xl mx-auto my-12"
+              className="bg-white rounded-4xl p-16 text-center shadow-sm border border-gray-100 max-w-2xl mx-auto my-12"
             >
               <div className="w-24 h-24 bg-yellow-50 rounded-full flex items-center justify-center mx-auto mb-6 text-[#facc15]">
                 <ShoppingBag size={48} />
@@ -98,11 +107,12 @@ const CartPage = () => {
                 Start Shopping
               </Link>
             </motion.div>
+            )
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
               {/* Items List */}
               <div className="lg:col-span-2 space-y-6">
-                <div className="bg-white rounded-[32px] p-6 sm:p-8 shadow-sm border border-gray-100 space-y-6">
+                <div className="bg-white rounded-4xl p-6 sm:p-8 shadow-sm border border-gray-100 space-y-6">
                   <div className="flex justify-between items-center border-b border-gray-100 pb-4 text-xs font-bold text-gray-400 uppercase tracking-wider">
                     <span>Product Details</span>
                     <span className="hidden sm:block">Total</span>
@@ -110,7 +120,7 @@ const CartPage = () => {
 
                   <AnimatePresence>
                     {cart.map((item) => {
-                      const prod = getProduct(item.id);
+                      const prod = getProduct(item.productId);
                       const isExpanded = expandedId === item.id;
                       return (
                         <motion.div
@@ -151,6 +161,16 @@ const CartPage = () => {
                                 <p className="font-bold text-xs sm:text-sm text-[#facc15] mt-1">
                                   ₹{item.price.toFixed(2)}
                                 </p>
+                                {item.priceChanged && (
+                                  <p className="text-[10px] font-bold text-amber-600 mt-1 uppercase tracking-wider">
+                                    Latest: ₹{item.latestPrice.toFixed(2)}
+                                  </p>
+                                )}
+                                {item.outOfStock && (
+                                  <p className="text-[10px] font-bold text-red-500 mt-1 uppercase tracking-wider">
+                                    Stock needs review
+                                  </p>
+                                )}
                                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mt-0.5">
                                   Click to view details
                                 </span>
@@ -200,7 +220,7 @@ const CartPage = () => {
                                 </button>
                               </div>
 
-                              <div className="text-right min-w-[80px]">
+                              <div className="text-right min-w-20">
                                 <p className="font-black text-gray-900 text-lg">
                                   ₹{(item.price * item.quantity).toFixed(2)}
                                 </p>
@@ -279,7 +299,7 @@ const CartPage = () => {
 
               {/* Order Summary */}
               <div className="lg:col-span-1">
-                <div className="bg-white rounded-[32px] p-8 shadow-xl border border-yellow-100 space-y-6 sticky top-36">
+                <div className="bg-white rounded-4xl p-8 shadow-xl border border-yellow-100 space-y-6 sticky top-36">
                   <h2 className="text-2xl font-black text-gray-900 tracking-tight uppercase border-b border-gray-100 pb-4">
                     Order Summary
                   </h2>
@@ -289,6 +309,18 @@ const CartPage = () => {
                       <span>Subtotal ({itemCount} items)</span>
                       <span className="font-bold text-gray-900">₹{cartTotal.toFixed(2)}</span>
                     </div>
+                    {cart.some((item) => item.priceChanged) && (
+                      <div className="flex justify-between text-amber-600">
+                        <span>Live Price Update</span>
+                        <span className="font-bold">Review items</span>
+                      </div>
+                    )}
+                    {cart.some((item) => item.outOfStock) && (
+                      <div className="flex justify-between text-red-500">
+                        <span>Stock Status</span>
+                        <span className="font-bold">Attention needed</span>
+                      </div>
+                    )}
                     <div className="flex justify-between">
                       <span>Estimated Shipping</span>
                       <span className="font-bold text-green-600">FREE</span>

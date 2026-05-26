@@ -32,6 +32,8 @@ export type ApiProduct = {
   slug?: string;
   description?: string;
   shortDescription?: string | null;
+  productType?: string;
+  hasVariants?: boolean;
   status?: "active" | "inactive" | string;
   thumbnail?: string | null;
   minPrice?: string | number;
@@ -59,6 +61,7 @@ export type UiProduct = {
   category: string;
   status: string;
   image: string;
+  defaultVariantId: number | null;
   rating: number;
   benefits: string[];
   specs: UiSpec[];
@@ -262,6 +265,23 @@ const resolveComparePrice = (product: ApiProduct) => {
   return null;
 };
 
+const resolveDefaultVariantId = (product: ApiProduct) => {
+  const variants = product.variants || [];
+
+  const inStockVariant = variants.find((variant) => {
+    const variantId = toNumber(variant.id, NaN);
+    return Number.isFinite(variantId) && toNumber(variant.inventory?.quantity, 0) > 0;
+  });
+
+  if (inStockVariant?.id) {
+    return Number(inStockVariant.id);
+  }
+
+  const firstVariant = variants.find((variant) => Number.isFinite(toNumber(variant.id, NaN)));
+
+  return firstVariant?.id ? Number(firstVariant.id) : null;
+};
+
 const resolveBenefits = (metaMap: Record<string, unknown>) => {
   const rawBenefits = metaMap.healthBenefits;
 
@@ -345,6 +365,7 @@ export const mapApiProductToUiProduct = (product: ApiProduct): UiProduct => {
     category: product.categories?.[0]?.name || "Uncategorized",
     status: resolveStatusLabel(String(product.status || "active"), stock),
     image: resolveImage(product),
+    defaultVariantId: resolveDefaultVariantId(product),
     rating: 4.5,
     benefits: resolveBenefits(metaMap),
     specs: resolveSpecs(metaMap),

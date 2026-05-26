@@ -1,78 +1,117 @@
 "use client";
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
 import toast from "react-hot-toast";
+import { wishlistApi } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
+import {
+  ContextWishlistItem,
+  mapWishlistItem,
+  normalizeSelectionId,
+  normalizeSelectionInput,
+  UiSelectionInput,
+} from "@/lib/shopping";
 
-export interface WishlistItem {
-  id: string | number;
-  name: string;
-  price: number;
-  image: string;
-}
+export type WishlistItem = ContextWishlistItem;
 
 interface WishlistContextType {
   wishlist: WishlistItem[];
-  addToWishlist: (item: { id: string | number; name: string; price: string | number; image: string }) => void;
-  removeFromWishlist: (id: string | number) => void;
-  toggleWishlist: (item: { id: string | number; name: string; price: string | number; image: string }) => void;
+  addToWishlist: (item: UiSelectionInput) => Promise<void>;
+  removeFromWishlist: (id: string | number) => Promise<void>;
+  toggleWishlist: (item: UiSelectionInput) => Promise<void>;
   isInWishlist: (id: string | number) => boolean;
-  clearWishlist: () => void;
+  clearWishlist: () => Promise<void>;
+  refreshWishlist: () => Promise<void>;
   wishlistCount: number;
+  loading: boolean;
 }
 
 const WishlistContext = createContext<WishlistContextType | undefined>(undefined);
 
 export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [wishlist, setWishlist] = useState<WishlistItem[]>([]);
-  const [isInitialized, setIsInitialized] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const { isAuthenticated, user } = useAuth();
 
-  useEffect(() => {
+  const applyWishlistResponse = (payload: unknown) => {
+    const wishlistData = (payload as { wishlist?: { items?: unknown[] } } | undefined)?.wishlist;
+    const items = Array.isArray(wishlistData?.items) ? wishlistData.items : [];
+
+    setWishlist(items.map((item) => mapWishlistItem(item as Parameters<typeof mapWishlistItem>[0])));
+  };
+
+  const refreshWishlist = async () => {
     try {
-      const stored = localStorage.getItem("peltown_wishlist");
-      if (stored) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setWishlist(JSON.parse(stored));
-      }
+      setLoading(true);
+      const response = await wishlistApi.get();
+      applyWishlistResponse(response.data?.data);
     } catch (e) {
       console.error("Failed to load wishlist", e);
+      setWishlist([]);
+    } finally {
+      setLoading(false);
     }
-    setIsInitialized(true);
-  }, []);
+  };
 
   useEffect(() => {
-    if (isInitialized) {
-      try {
-        localStorage.setItem("peltown_wishlist", JSON.stringify(wishlist));
-      } catch (e) {
-        console.error("Failed to save wishlist", e);
-      }
-    }
-  }, [wishlist, isInitialized]);
+    void refreshWishlist();
+  }, [isAuthenticated, user?.id]);
 
-  const addToWishlist = (item: { id: string | number; name: string; price: string | number; image: string }) => {
-    const itemPrice = typeof item.price === "string" ? parseFloat(item.price) : item.price;
-    if (!wishlist.some((w) => w.id === item.id)) {
-      setWishlist((prev) => [...prev, { id: item.id, name: item.name, price: itemPrice, image: item.image }]);
-      toast.success(`${item.name} added to wishlist! ❤️`, { id: `wish-${item.id}` });
+  const addToWishlist = async (item: UiSelectionInput) => {
+    try {
+      const selection = normalizeSelectionInput(item);
+      const response = await wishlistApi.addItem({
+        productId: selection.productId,
+        variantId: selection.variantId,
+      });
+
+      applyWishlistResponse(response.data?.data);
+      toast.success(`${selection.name} added to wishlist! ❤️`, { id: `wish-${selection.productId}` });
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || error.message || "Unable to update wishlist");
     }
   };
 
-  const removeFromWishlist = (id: string | number) => {
-    setWishlist((prev) => prev.filter((w) => w.id !== id));
-    toast.success("Removed from wishlist", { icon: "💔" });
+  const removeFromWishlist = async (id: string | number) => {
+    const normalizedId = normalizeSelectionId(id);
+    const existingItem = wishlist.find((entry) => entry.id === normalizedId);
+
+    if (!existingItem) {
+      return;
+    }
+
+    try {
+      const response = await wishlistApi.removeItem(existingItem.wishlistItemId);
+      applyWishlistResponse(response.data?.data);
+      toast.success("Removed from wishlist", { icon: "💔" });
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || error.message || "Unable to remove wishlist item");
+    }
   };
 
-  const toggleWishlist = (item: { id: string | number; name: string; price: string | number; image: string }) => {
-    if (wishlist.some((w) => w.id === item.id)) {
-      removeFromWishlist(item.id);
+  const toggleWishlist = async (item: UiSelectionInput) => {
+    const normalizedId = normalizeSelectionId(item.id, item.variantId ?? null);
+
+    if (wishlist.some((w) => w.id === normalizedId)) {
+      await removeFromWishlist(normalizedId);
     } else {
-      addToWishlist(item);
+      await addToWishlist(item);
     }
   };
 
-  const isInWishlist = (id: string | number) => wishlist.some((w) => w.id === id);
+  const isInWishlist = (id: string | number) => {
+    const normalizedId = normalizeSelectionId(id);
+    return wishlist.some((w) => w.id === normalizedId);
+  };
 
-  const clearWishlist = () => {
-    setWishlist([]);
+  const clearWishlist = async () => {
+    try {
+      await Promise.all(wishlist.map((item) => wishlistApi.removeItem(item.wishlistItemId)));
+      setWishlist([]);
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || error.message || "Unable to clear wishlist");
+      return;
+    }
+
     toast.success("Wishlist cleared", { icon: "🧹" });
   };
 
@@ -87,7 +126,9 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         toggleWishlist,
         isInWishlist,
         clearWishlist,
+        refreshWishlist,
         wishlistCount,
+        loading,
       }}
     >
       {children}

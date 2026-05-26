@@ -2,6 +2,38 @@
 import axios from "axios";
 
 const API_BASE_URL = "/api";
+const GUEST_ID_STORAGE_KEY = "guestId";
+const GUEST_ID_PATTERN = /^guest_[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const buildGuestId = () => {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `guest_${crypto.randomUUID()}`;
+  }
+
+  const fallback = "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (char) => {
+    const random = Math.floor(Math.random() * 16);
+    const value = char === "x" ? random : (random & 0x3) | 0x8;
+    return value.toString(16);
+  });
+
+  return `guest_${fallback}`;
+};
+
+const getOrCreateGuestId = () => {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const storedGuestId = localStorage.getItem(GUEST_ID_STORAGE_KEY);
+  if (storedGuestId && GUEST_ID_PATTERN.test(storedGuestId)) {
+    return storedGuestId;
+  }
+
+  const nextGuestId = buildGuestId();
+  localStorage.setItem(GUEST_ID_STORAGE_KEY, nextGuestId);
+  return nextGuestId;
+};
+
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
@@ -12,6 +44,11 @@ const api = axios.create({
 // Request interceptor for adding the bearer token
 api.interceptors.request.use(
   (config) => {
+    const guestId = getOrCreateGuestId();
+    if (guestId) {
+      config.headers["x-guest-id"] = guestId;
+    }
+
     const token =
       typeof window !== "undefined"
         ? localStorage.getItem("accessToken")
@@ -78,6 +115,23 @@ export const productApi = {
   list: (params?: Record<string, string | number | boolean>) => api.get("/v1/products", { params }),
   getById: (id: string | number) => api.get(`/v1/products/${id}`),
   remove: (id: string | number) => api.delete(`/v1/products/${id}`),
+};
+
+export const cartApi = {
+  get: () => api.get("/v1/cart"),
+  addItem: (data: { productId: number; variantId?: number | null; quantity: number }) =>
+    api.post("/v1/cart/items", data),
+  updateItem: (id: number, data: { quantity: number }) => api.patch(`/v1/cart/items/${id}`, data),
+  removeItem: (id: number) => api.delete(`/v1/cart/items/${id}`),
+  clear: () => api.delete("/v1/cart/clear"),
+  merge: () => api.post("/v1/cart/merge"),
+};
+
+export const wishlistApi = {
+  get: () => api.get("/v1/wishlist"),
+  addItem: (data: { productId: number; variantId?: number | null }) => api.post("/v1/wishlist/items", data),
+  removeItem: (id: number) => api.delete(`/v1/wishlist/items/${id}`),
+  merge: () => api.post("/v1/wishlist/merge"),
 };
 
 export const categoryApi = {

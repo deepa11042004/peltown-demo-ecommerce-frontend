@@ -80,6 +80,11 @@ const proxyAuthRequest = async (request: NextRequest, context: RouteContext) => 
     requestHeaders.set("cookie", incomingCookie);
   }
 
+  const incomingGuestId = request.headers.get("x-guest-id");
+  if (incomingGuestId) {
+    requestHeaders.set("x-guest-id", incomingGuestId);
+  }
+
   const incomingAccept = request.headers.get("accept");
   if (incomingAccept) {
     requestHeaders.set("accept", incomingAccept);
