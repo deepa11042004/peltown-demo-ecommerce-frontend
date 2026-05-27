@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -20,7 +20,13 @@ import {
 import { useCart } from "@/context/CartContext";
 import { productApi } from "@/lib/api";
 import { buildSelectionKey } from "@/lib/shopping";
-import { ApiProduct, mapApiProductToUiProduct, UiProduct } from "@/lib/productMapping";
+import {
+  ApiProduct,
+  mapApiProductToUiProduct,
+  mapApiProductToUiProductDetail,
+  UiProduct,
+  UiProductDetail,
+} from "@/lib/productMapping";
 
 export default function ProductDetailPage() {
   const params = useParams();
@@ -30,8 +36,10 @@ export default function ProductDetailPage() {
 
   const [quantity, setQuantity] = useState(1);
   const [activeTab, setActiveTab] = useState<"description" | "specs" | "shipping">("description");
-  const [product, setProduct] = useState<UiProduct | null>(null);
+  const [product, setProduct] = useState<UiProductDetail | null>(null);
   const [recommendedProducts, setRecommendedProducts] = useState<UiProduct[]>([]);
+  const [selectedVariantId, setSelectedVariantId] = useState<number | null>(null);
+  const [activeImage, setActiveImage] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
 
@@ -56,7 +64,7 @@ export default function ProductDetailPage() {
         const productData = productResponse.data?.data as ApiProduct;
         const listItems = (recommendationsResponse.data?.data?.items || []) as ApiProduct[];
 
-        const mappedProduct = mapApiProductToUiProduct(productData);
+        const mappedProduct = mapApiProductToUiProductDetail(productData);
         const mappedRecommendations = listItems
           .map(mapApiProductToUiProduct)
           .filter((entry) => String(entry.id) !== String(mappedProduct.id))
@@ -67,6 +75,8 @@ export default function ProductDetailPage() {
         }
 
         setProduct(mappedProduct);
+        setSelectedVariantId(mappedProduct.defaultVariantId);
+        setActiveImage(0);
         setRecommendedProducts(mappedRecommendations);
       } catch {
         if (!mounted) {
@@ -93,18 +103,52 @@ export default function ProductDetailPage() {
   const handleIncrease = () => setQuantity((prev) => prev + 1);
   const handleDecrease = () => setQuantity((prev) => (prev > 1 ? prev - 1 : 1));
 
+  const selectedVariant = useMemo(() => {
+    if (!product || !product.variants.length) {
+      return null;
+    }
+
+    return product.variants.find((variant) => variant.id === selectedVariantId) || null;
+  }, [product, selectedVariantId]);
+
+  const currentPrice = selectedVariant ? selectedVariant.price : Number(product?.price || 0);
+  const currentComparePrice = selectedVariant?.comparePrice ?? product?.oldPriceValue ?? null;
+  const currentStock = selectedVariant ? selectedVariant.stock : product?.stock ?? 0;
+
+  const displayImages = useMemo(() => {
+    if (!product) {
+      return [] as string[];
+    }
+
+    const images = new Set<string>();
+
+    if (selectedVariant?.image) {
+      images.add(selectedVariant.image);
+    }
+
+    for (const src of product.gallery) {
+      images.add(src);
+    }
+
+    if (images.size === 0 && product.image) {
+      images.add(product.image);
+    }
+
+    return [...images];
+  }, [product, selectedVariant]);
+
   const handleAddCustomQuantity = () => {
     if (!product) {
       return;
     }
 
     void addToCart({
-      id: buildSelectionKey(Number(product.id), product.defaultVariantId),
-      name: product.name,
-      price: product.price,
-      image: product.image,
+      id: buildSelectionKey(Number(product.id), selectedVariant?.id ?? product.defaultVariantId),
+      name: selectedVariant ? `${product.name} - ${selectedVariant.title}` : product.name,
+      price: currentPrice,
+      image: selectedVariant?.image || product.image,
       quantity,
-      variantId: product.defaultVariantId,
+      variantId: selectedVariant?.id ?? product.defaultVariantId,
     });
   };
 
@@ -154,27 +198,47 @@ export default function ProductDetailPage() {
         {/* Main Product Display Area */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-start">
           {/* Image Gallery Column */}
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="relative w-full aspect-square bg-white rounded-[40px] shadow-2xl border border-gray-100 overflow-hidden flex items-center justify-center p-8"
-          >
-            {product.status && (
-              <span className="absolute top-6 left-6 bg-[#facc15] text-xs font-black px-4 py-2 rounded-full uppercase z-10 shadow-md tracking-widest">
-                {product.status}
-              </span>
+          <div className="space-y-4">
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="relative w-full aspect-square bg-white rounded-[40px] shadow-2xl border border-gray-100 overflow-hidden flex items-center justify-center p-8"
+            >
+              {product.status && (
+                <span className="absolute top-6 left-6 bg-[#facc15] text-xs font-black px-4 py-2 rounded-full uppercase z-10 shadow-md tracking-widest">
+                  {product.status}
+                </span>
+              )}
+              <div className="relative w-full h-full">
+                <Image
+                  src={displayImages[activeImage] || product.image}
+                  alt={product.name}
+                  fill
+                  sizes="100vw"
+                  className="object-cover rounded-3xl"
+                  priority
+                />
+              </div>
+            </motion.div>
+
+            {displayImages.length > 1 && (
+              <div className="flex flex-wrap gap-3">
+                {displayImages.map((src, index) => (
+                  <button
+                    key={`${src}-${index}`}
+                    onClick={() => setActiveImage(index)}
+                    className={`relative h-16 w-16 rounded-2xl overflow-hidden border-2 transition-all ${
+                      activeImage === index
+                        ? "border-[#facc15] shadow-md"
+                        : "border-gray-200 hover:border-gray-400"
+                    }`}
+                  >
+                    <Image src={src} alt={`${product.name} ${index + 1}`} fill className="object-cover" sizes="64px" />
+                  </button>
+                ))}
+              </div>
             )}
-            <div className="relative w-full h-full">
-              <Image
-                src={product.image}
-                alt={product.name}
-                fill
-                sizes="100vw"
-                className="object-cover rounded-3xl"
-                priority
-              />
-            </div>
-          </motion.div>
+          </div>
 
           {/* Details & Purchasing Column */}
           <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-8">
@@ -211,20 +275,70 @@ export default function ProductDetailPage() {
             {/* Price */}
             <div className="flex items-center gap-4 bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
               <div className="flex items-baseline gap-3">
-                <span className="text-4xl font-black text-gray-900">₹{product.price}</span>
-                {product.oldPrice && (
-                  <span className="text-xl text-gray-400 line-through font-bold">₹{product.oldPrice}</span>
+                <span className="text-4xl font-black text-gray-900">₹{currentPrice.toFixed(2)}</span>
+                {currentComparePrice && currentComparePrice > currentPrice && (
+                  <span className="text-xl text-gray-400 line-through font-bold">₹{currentComparePrice.toFixed(2)}</span>
                 )}
               </div>
-              {product.oldPrice && (
+              {currentComparePrice && currentComparePrice > currentPrice && (
                 <span className="bg-red-100 text-red-600 font-black text-xs px-3 py-1 rounded-full uppercase tracking-widest">
-                  Save ₹{(Number(product.oldPrice) - Number(product.price)).toFixed(2)}
+                  Save ₹{(currentComparePrice - currentPrice).toFixed(2)}
                 </span>
               )}
             </div>
 
+            {product.variants.length > 0 && (
+              <div className="space-y-4 bg-white p-5 rounded-3xl border border-gray-100 shadow-sm">
+                <div className="flex items-center justify-between gap-4">
+                  <h4 className="text-xs font-black uppercase tracking-widest text-gray-800">Choose Variant</h4>
+                  <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                    {product.variants.length} options
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {product.variants.map((variant) => {
+                    const isActive = variant.id === selectedVariant?.id;
+                    const isDisabled = variant.status === "inactive" || variant.stock <= 0;
+
+                    return (
+                      <button
+                        key={variant.id}
+                        onClick={() => {
+                          setSelectedVariantId(variant.id);
+                          setActiveImage(0);
+                        }}
+                        disabled={isDisabled}
+                        className={`text-left rounded-2xl border px-4 py-3 transition-all ${
+                          isActive
+                            ? "border-[#facc15] bg-yellow-50"
+                            : "border-gray-200 bg-white hover:border-gray-400"
+                        } ${isDisabled ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
+                      >
+                        <p className="text-sm font-black text-gray-900">{variant.title}</p>
+                        <p className="text-xs font-bold text-gray-500 mt-1">
+                          ₹{variant.price.toFixed(2)} • {variant.stock > 0 ? "In Stock" : "Out of Stock"}
+                        </p>
+                        {variant.attributes.length > 0 && (
+                          <p className="text-[11px] font-semibold text-gray-500 mt-1 line-clamp-1">
+                            {variant.attributes.map((entry) => `${entry.label}: ${entry.value}`).join(" • ")}
+                          </p>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Short Description */}
-            <p className="text-gray-600 font-medium text-base sm:text-lg leading-relaxed">{product.description}</p>
+            <p className="text-gray-600 font-medium text-base sm:text-lg leading-relaxed">
+              {product.shortDescription || product.description}
+            </p>
+
+            <p className="text-xs font-bold uppercase tracking-wider text-gray-500">
+              {currentStock > 0 ? "In Stock" : "Out of Stock"}
+            </p>
 
             {/* Key Benefits */}
             <div className="space-y-3 py-4 border-y border-gray-100">
@@ -259,10 +373,13 @@ export default function ProductDetailPage() {
 
               <button
                 onClick={handleAddCustomQuantity}
-                className="flex-1 bg-[#facc15] text-black py-5 px-8 rounded-full font-black text-sm uppercase tracking-[0.2em] shadow-xl hover:bg-black hover:text-white transition-all duration-300 flex items-center justify-center gap-3 cursor-pointer"
+                disabled={currentStock <= 0}
+                className="flex-1 bg-[#facc15] text-black py-5 px-8 rounded-full font-black text-sm uppercase tracking-[0.2em] shadow-xl hover:bg-black hover:text-white transition-all duration-300 flex items-center justify-center gap-3 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-[#facc15] disabled:hover:text-black"
               >
                 <ShoppingBasket size={20} />
-                Add to Cart • ₹{(Number(product.price) * quantity).toFixed(2)}
+                {currentStock > 0
+                  ? `Add to Cart • ₹${(currentPrice * quantity).toFixed(2)}`
+                  : "Out of Stock"}
               </button>
             </div>
 
@@ -316,15 +433,19 @@ export default function ProductDetailPage() {
           <div className="py-4">
             {activeTab === "description" && (
               <div className="space-y-4 text-gray-600 font-medium leading-relaxed">
-                <p>
-                  Sourced straight from pristine mountain orchards, our premium products undergo meticulous quality checks to
-                  ensure that only the finest, crunchiest, and most flavorful specimens reach your table. Packed with
-                  essential minerals, antioxidants, and pure nutrition.
-                </p>
-                <p>
-                  We prioritize sustainable farming practices and work directly with local farmers. Every package is sealed in
-                  oxygen-barrier pouches to lock in natural freshness, aroma, and essential oils.
-                </p>
+                <p>{product.description || product.shortDescription || "No detailed description available yet."}</p>
+                {selectedVariant?.attributes.length ? (
+                  <div className="flex flex-wrap gap-2">
+                    {selectedVariant.attributes.map((attribute) => (
+                      <span
+                        key={`${attribute.label}-${attribute.value}`}
+                        className="text-[11px] font-bold text-gray-700 bg-gray-100 border border-gray-200 rounded-full px-3 py-1"
+                      >
+                        {attribute.label}: {attribute.value}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             )}
 
@@ -332,7 +453,7 @@ export default function ProductDetailPage() {
               <div className="overflow-hidden rounded-2xl border border-gray-100">
                 <table className="w-full text-left text-sm">
                   <tbody className="divide-y divide-gray-100">
-                    {product.specs.map((spec, idx) => (
+                    {[...product.specs, ...(selectedVariant?.attributes || [])].map((spec, idx) => (
                       <tr key={idx} className={idx % 2 === 0 ? "bg-gray-50/50" : "bg-white"}>
                         <th className="py-4 px-6 font-black uppercase text-gray-700 tracking-wider w-1/3">{spec.label}</th>
                         <td className="py-4 px-6 font-semibold text-gray-600">{spec.value}</td>
@@ -447,7 +568,15 @@ export default function ProductDetailPage() {
 
                 {/* Action Button */}
                 <button
-                  onClick={() => addToCart({ id: `rec-${rec.id}`, name: rec.name, price: rec.price, image: rec.image })}
+                  onClick={() =>
+                    addToCart({
+                      id: buildSelectionKey(Number(rec.id), rec.defaultVariantId),
+                      name: rec.name,
+                      price: rec.price,
+                      image: rec.image,
+                      variantId: rec.defaultVariantId,
+                    })
+                  }
                   className="w-full py-3.5 border-2 border-gray-900 rounded-full text-[11px] font-black uppercase tracking-widest hover:bg-gray-900 hover:text-white transition-all cursor-pointer"
                 >
                   Add to Cart

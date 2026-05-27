@@ -46,7 +46,7 @@ const Footer = () => {
           <div className="flex flex-col gap-6">
             <Link href="/" className="inline-block w-fit cursor-pointer">
               <Image
-                src="/Img/White-logo.webp"
+                src="/Img/white-logo-Peltown.png"
                 alt="PelTown"
                 width={180}
                 height={50}

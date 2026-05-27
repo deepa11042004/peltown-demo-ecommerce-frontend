@@ -10,10 +10,33 @@ export type ApiInventory = {
 
 export type ApiVariant = {
   id?: number;
+  title?: string | null;
+  sku?: string | null;
   price?: string | number;
   comparePrice?: string | number | null;
+  status?: "active" | "inactive" | string;
   image?: string | null;
+  media?: ApiMedia[];
   inventory?: ApiInventory | null;
+  attributeValues?: ApiVariantAttributeValue[];
+};
+
+export type ApiAttributeRef = {
+  id?: number;
+  name?: string;
+  slug?: string;
+};
+
+export type ApiAttributeValueRef = {
+  id?: number;
+  value?: string;
+  valueSlug?: string;
+};
+
+export type ApiVariantAttributeValue = {
+  id?: number;
+  attribute?: ApiAttributeRef | null;
+  attributeValue?: ApiAttributeValueRef | null;
 };
 
 export type ApiMedia = {
@@ -56,15 +79,37 @@ export type UiProduct = {
   description: string;
   shortDescription: string;
   price: string;
+  priceValue: number;
   oldPrice?: string;
+  oldPriceValue: number | null;
   stock: number;
   category: string;
+  productType: string;
+  hasVariants: boolean;
+  variantCount: number;
   status: string;
   image: string;
   defaultVariantId: number | null;
   rating: number;
   benefits: string[];
   specs: UiSpec[];
+};
+
+export type UiVariant = {
+  id: number;
+  title: string;
+  sku: string;
+  price: number;
+  comparePrice: number | null;
+  image: string;
+  stock: number;
+  status: string;
+  attributes: UiSpec[];
+};
+
+export type UiProductDetail = UiProduct & {
+  gallery: string[];
+  variants: UiVariant[];
 };
 
 const FALLBACK_IMAGE = "/Img/walnuts.jpg";
@@ -223,6 +268,36 @@ const resolveImage = (product: ApiProduct) => {
   return FALLBACK_IMAGE;
 };
 
+const resolveGallery = (product: ApiProduct) => {
+  const gallery = new Set<string>();
+
+  const pushIfValid = (value: string) => {
+    const normalized = normalizeImageSrc(value);
+    if (normalized) {
+      gallery.add(normalized);
+    }
+  };
+
+  pushIfValid(String(product.thumbnail || ""));
+
+  for (const media of product.media || []) {
+    pushIfValid(String(media.url || ""));
+  }
+
+  for (const variant of product.variants || []) {
+    pushIfValid(String(variant.image || ""));
+    for (const media of variant.media || []) {
+      pushIfValid(String(media.url || ""));
+    }
+  }
+
+  if (gallery.size === 0) {
+    gallery.add(FALLBACK_IMAGE);
+  }
+
+  return [...gallery];
+};
+
 const resolveStock = (product: ApiProduct) => {
   const totalStock = toNumber(product.totalStock, NaN);
 
@@ -360,14 +435,81 @@ export const mapApiProductToUiProduct = (product: ApiProduct): UiProduct => {
     description: String(product.description || ""),
     shortDescription: String(product.shortDescription || product.description || ""),
     price: formatPrice(priceNumber),
+    priceValue: priceNumber,
     oldPrice: comparePriceNumber && comparePriceNumber > priceNumber ? formatPrice(comparePriceNumber) : undefined,
+    oldPriceValue: comparePriceNumber,
     stock,
     category: product.categories?.[0]?.name || "Uncategorized",
+    productType: String(product.productType || "simple"),
+    hasVariants: Boolean(product.hasVariants),
+    variantCount: Array.isArray(product.variants) ? product.variants.length : 0,
     status: resolveStatusLabel(String(product.status || "active"), stock),
     image: resolveImage(product),
     defaultVariantId: resolveDefaultVariantId(product),
     rating: 4.5,
     benefits: resolveBenefits(metaMap),
     specs: resolveSpecs(metaMap),
+  };
+};
+
+const mapVariantToUiVariant = (variant: ApiVariant): UiVariant | null => {
+  const variantId = toNumber(variant.id, NaN);
+  if (!Number.isFinite(variantId)) {
+    return null;
+  }
+
+  const attributePairs = (variant.attributeValues || [])
+    .map((entry) => {
+      const label = String(entry.attribute?.name || "").trim();
+      const value = String(entry.attributeValue?.value || "").trim();
+
+      if (!label || !value) {
+        return null;
+      }
+
+      return { label, value };
+    })
+    .filter(Boolean) as UiSpec[];
+
+  const variantGalleryImage = (variant.media || [])
+    .map((media) => normalizeImageSrc(String(media.url || "")))
+    .find(Boolean);
+
+  return {
+    id: Number(variantId),
+    title: String(variant.title || "Standard"),
+    sku: String(variant.sku || ""),
+    price: toNumber(variant.price, 0),
+    comparePrice: (() => {
+      const comparePrice = toNumber(variant.comparePrice, NaN);
+      return Number.isFinite(comparePrice) ? comparePrice : null;
+    })(),
+    image:
+      normalizeImageSrc(String(variant.image || "")) ||
+      variantGalleryImage ||
+      FALLBACK_IMAGE,
+    stock: toNumber(variant.inventory?.quantity, 0),
+    status: String(variant.status || "active"),
+    attributes: attributePairs,
+  };
+};
+
+export const mapApiProductToUiProductDetail = (product: ApiProduct): UiProductDetail => {
+  const base = mapApiProductToUiProduct(product);
+  const mappedVariants = (product.variants || [])
+    .map(mapVariantToUiVariant)
+    .filter(Boolean) as UiVariant[];
+
+  return {
+    ...base,
+    variants: mappedVariants,
+    variantCount: mappedVariants.length,
+    gallery: resolveGallery(product),
+    hasVariants: mappedVariants.length > 0 || base.hasVariants,
+    defaultVariantId:
+      base.defaultVariantId ??
+      mappedVariants.find((variant) => variant.stock > 0)?.id ??
+      mappedVariants[0]?.id ??
+      null,
   };
 };

@@ -220,6 +220,15 @@ const AllProduct: React.FC<AllProductProps> = ({ showFilter = false }) => {
                   )}
                 </div>
 
+                <div className="flex items-center gap-2 mb-3 flex-wrap justify-center">
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-gray-100 text-gray-700">
+                    {product.category}
+                  </span>
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-green-100 text-green-700">
+                    {product.stock > 0 ? "In Stock" : "Out of Stock"}
+                  </span>
+                </div>
+
                 {/* Title */}
                 <Link
                   href={`/product/${product.id}`}

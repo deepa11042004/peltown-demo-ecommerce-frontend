@@ -41,7 +41,7 @@ const LoginPage = () => {
         <div className="text-center mb-10">
           <Link href="/" className="inline-flex mb-6 cursor-pointer">
             <Image
-              src="/Img/White-logo.webp"
+              src="/Img/white-logo-Peltown.png"
               alt="PelTown"
               width={170}
               height={48}

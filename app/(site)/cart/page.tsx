@@ -1,22 +1,92 @@
 "use client";
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useCart } from "@/context/CartContext";
 import Image from "next/image";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Trash2, Plus, Minus, ArrowLeft, ShoppingBag, CheckCircle2, ChevronDown } from "lucide-react";
 import toast from "react-hot-toast";
-import { mockProducts } from "@/lib/mockProducts";
+import { productApi } from "@/lib/api";
+import { ApiProduct, mapApiProductToUiProductDetail, UiProductDetail } from "@/lib/productMapping";
+
+const toSafeImageSrc = (value: string | undefined) => {
+  const src = String(value || "").trim();
+
+  if (!src) {
+    return "/Img/walnuts.jpg";
+  }
+
+  if (src.startsWith("/") || src.startsWith("http://") || src.startsWith("https://") || src.startsWith("data:image/")) {
+    return src;
+  }
+
+  if (src.startsWith("uploads/")) {
+    return `/${src}`;
+  }
+
+  return "/Img/walnuts.jpg";
+};
 
 const CartPage = () => {
   const { cart, removeFromCart, updateQuantity, clearCart, cartTotal, itemCount, loading } = useCart();
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [expandedId, setExpandedId] = useState<string | number | null>(null);
+  const [productDetails, setProductDetails] = useState<Record<number, UiProductDetail>>({});
 
-  const getProduct = (productId: string | number) => {
-    return mockProducts.find((p) => String(p.id) === String(productId));
-  };
+  const uniqueProductIds = useMemo(() => {
+    return Array.from(new Set(cart.map((item) => item.productId)));
+  }, [cart]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadDetails = async () => {
+      if (uniqueProductIds.length === 0) {
+        setProductDetails({});
+        return;
+      }
+
+      try {
+        const responses = await Promise.all(
+          uniqueProductIds.map((productId) => productApi.getById(productId)),
+        );
+
+        if (!mounted) {
+          return;
+        }
+
+        const nextDetails: Record<number, UiProductDetail> = {};
+
+        for (const response of responses) {
+          const apiProduct = response.data?.data as ApiProduct;
+
+          if (!apiProduct?.id) {
+            continue;
+          }
+
+          const mapped = mapApiProductToUiProductDetail(apiProduct);
+          const numericId = Number(mapped.id);
+
+          if (Number.isFinite(numericId)) {
+            nextDetails[numericId] = mapped;
+          }
+        }
+
+        setProductDetails(nextDetails);
+      } catch {
+        if (mounted) {
+          setProductDetails({});
+        }
+      }
+    };
+
+    void loadDetails();
+
+    return () => {
+      mounted = false;
+    };
+  }, [uniqueProductIds]);
 
   const handleCheckout = () => {
     setIsCheckingOut(true);
@@ -120,7 +190,7 @@ const CartPage = () => {
 
                   <AnimatePresence>
                     {cart.map((item) => {
-                      const prod = getProduct(item.productId);
+                      const prod = productDetails[item.productId];
                       const isExpanded = expandedId === item.id;
                       return (
                         <motion.div
@@ -139,7 +209,7 @@ const CartPage = () => {
                             >
                               <div className="relative w-20 h-20 sm:w-24 sm:h-24 bg-[#f8f8f8] rounded-2xl overflow-hidden shrink-0 border border-gray-100 shadow-inner group-hover:border-yellow-300 transition-colors">
                                 <Image
-                                  src={item.image}
+                                  src={toSafeImageSrc(item.image)}
                                   alt={item.name}
                                   fill
                                   sizes="80px"

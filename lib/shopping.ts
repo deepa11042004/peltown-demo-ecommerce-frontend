@@ -69,6 +69,76 @@ export type ContextWishlistItem = {
   inStock: boolean;
 };
 
+const trimTrailingSlash = (value: string) => value.replace(/\/+$/, "");
+
+const resolveUploadsBaseUrl = () => {
+  const explicitBase = process.env.NEXT_PUBLIC_UPLOADS_BASE_URL?.trim();
+  if (explicitBase) {
+    return trimTrailingSlash(explicitBase);
+  }
+
+  const apiBase = process.env.NEXT_PUBLIC_API_URL?.trim();
+  if (!apiBase) {
+    return "";
+  }
+
+  try {
+    const parsed = new URL(apiBase);
+    return `${parsed.protocol}//${parsed.host}`;
+  } catch {
+    return "";
+  }
+};
+
+const UPLOADS_BASE_URL = resolveUploadsBaseUrl();
+
+const normalizeImageSrc = (rawSrc: string) => {
+  const src = rawSrc.trim();
+
+  if (!src) {
+    return "";
+  }
+
+  if (src.startsWith("/")) {
+    if (src.startsWith("/uploads/") && UPLOADS_BASE_URL) {
+      return `${UPLOADS_BASE_URL}${src}`;
+    }
+
+    return src;
+  }
+
+  if (src.startsWith("data:image/")) {
+    return src;
+  }
+
+  try {
+    const parsed = new URL(src);
+
+    if (
+      (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1") &&
+      parsed.pathname.startsWith("/uploads/")
+    ) {
+      if (UPLOADS_BASE_URL) {
+        return `${UPLOADS_BASE_URL}${parsed.pathname}${parsed.search}${parsed.hash}`;
+      }
+
+      return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    }
+
+    return src;
+  } catch {
+    if (src.startsWith("uploads/")) {
+      if (UPLOADS_BASE_URL) {
+        return `${UPLOADS_BASE_URL}/${src}`;
+      }
+
+      return `/${src}`;
+    }
+
+    return src;
+  }
+};
+
 const normalizeNumber = (value: string | number | null | undefined) => {
   if (typeof value === "number") {
     return Number.isFinite(value) ? value : null;
@@ -152,7 +222,10 @@ export const mapCartItem = (item: ApiCartItem): ContextCartItem => {
     name,
     price: Number(item.unitPrice ?? 0),
     latestPrice: Number(item.latestPrice ?? item.unitPrice ?? 0),
-    image: item.variant?.image || item.product?.thumbnail || "/Img/walnuts.jpg",
+    image:
+      normalizeImageSrc(item.variant?.image || "") ||
+      normalizeImageSrc(item.product?.thumbnail || "") ||
+      "/Img/walnuts.jpg",
     quantity: Number(item.quantity ?? 0),
     priceChanged: Boolean(item.priceChanged),
     outOfStock: Boolean(item.outOfStock),
@@ -173,7 +246,10 @@ export const mapWishlistItem = (item: ApiWishlistItem): ContextWishlistItem => {
     variantId: item.variantId,
     name,
     price: Number(item.latestPrice ?? 0),
-    image: item.variant?.image || item.product?.thumbnail || "/Img/walnuts.jpg",
+    image:
+      normalizeImageSrc(item.variant?.image || "") ||
+      normalizeImageSrc(item.product?.thumbnail || "") ||
+      "/Img/walnuts.jpg",
     inStock: item.inStock !== false,
   };
 };

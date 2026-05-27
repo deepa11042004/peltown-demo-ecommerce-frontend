@@ -272,6 +272,15 @@ const ProductSec = () => {
                         )}
                       </div>
 
+                      <div className="flex items-center gap-2 mb-3 flex-wrap justify-center">
+                        <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-gray-100 text-gray-700">
+                          {product.category}
+                        </span>
+                        <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-green-100 text-green-700">
+                          {product.stock > 0 ? "In Stock" : "Out of Stock"}
+                        </span>
+                      </div>
+
                       <Link href={`/product/${product.id}`} className="text-base sm:text-lg font-black text-gray-800 hover:text-yellow-600 transition-colors mt-2 mb-3 h-10 sm:h-12 line-clamp-2 px-2 leading-tight uppercase tracking-tight block">
                         {product.name}
                       </Link>
@@ -298,9 +307,18 @@ const ProductSec = () => {
                       </div>
 
                       {/* Action Button (Pill Style) */}
-                      <button 
-                        onClick={() => addToCart({ id: selectionId, name: product.name, price: product.price, image: product.image, variantId: product.defaultVariantId })}
-                        className="w-full py-3 sm:py-4 border-2 border-gray-900 rounded-full text-[10px] sm:text-[11px] font-black uppercase tracking-[0.2em] hover:bg-gray-900 hover:text-white transition-all duration-300 shadow-sm hover:shadow-lg">
+                      <button
+                        onClick={() =>
+                          addToCart({
+                            id: selectionId,
+                            name: product.name,
+                            price: product.price,
+                            image: product.image,
+                            variantId: product.defaultVariantId,
+                          })
+                        }
+                        className="w-full py-3 sm:py-4 border-2 border-gray-900 rounded-full text-[10px] sm:text-[11px] font-black uppercase tracking-[0.2em] hover:bg-gray-900 hover:text-white transition-all duration-300 shadow-sm hover:shadow-lg"
+                      >
                         Add to Cart
                       </button>
                     </motion.div>
