@@ -74,7 +74,7 @@ const STATUS_LABELS: Record<string, string> = {
   FAILED: "Failed",
 };
 
-const STATUS_STYLES: Record<string, { badge: string; icon: JSX.Element }> = {
+const STATUS_STYLES: Record<string, { badge: string; icon: React.ReactNode }> = {
   DELIVERED: {
     badge: "bg-green-50 text-green-700 border-green-200",
     icon: <CheckCircle2 size={14} className="text-green-600" />,

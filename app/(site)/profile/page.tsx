@@ -66,7 +66,7 @@ type AddressFormState = {
   type: "shipping" | "billing" | "both";
 };
 
-const ORDER_STATUS_META: Record<string, { label: string; badge: string; icon: JSX.Element }> = {
+const ORDER_STATUS_META: Record<string, { label: string; badge: string; icon: React.ReactNode }> = {
   DELIVERED: {
     label: "Delivered",
     badge: "bg-green-50 text-green-700 border-green-200",
