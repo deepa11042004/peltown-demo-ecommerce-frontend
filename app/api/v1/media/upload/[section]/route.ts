@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const ALLOWED_IMAGE_TYPES = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-]);
+type RouteContext = {
+  params: Promise<{ section: string }>;
+};
 
-const MAX_FILE_SIZE = 5 * 1024 * 1024;
+const ALLOWED_SECTIONS = new Set([
+  "products",
+  "variants",
+  "categories",
+  "brands",
+  "users",
+  "temp",
+]);
 
 const getApiBaseUrl = () => {
   const value = process.env.API_URL?.trim();
@@ -21,7 +26,7 @@ const getApiBaseUrl = () => {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function POST(request: NextRequest) {
+export async function POST(request: NextRequest, context: RouteContext) {
   try {
     const apiBaseUrl = getApiBaseUrl();
 
@@ -32,6 +37,18 @@ export async function POST(request: NextRequest) {
           message: "API_URL is not configured",
         },
         { status: 500 },
+      );
+    }
+
+    const { section } = await context.params;
+
+    if (!ALLOWED_SECTIONS.has(section)) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Unsupported upload section",
+        },
+        { status: 400 },
       );
     }
 
@@ -48,31 +65,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!ALLOWED_IMAGE_TYPES.has(fileEntry.type)) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Only JPG, PNG, and WEBP images are allowed",
-        },
-        { status: 400 },
-      );
-    }
-
-    if (fileEntry.size > MAX_FILE_SIZE) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Image size must be less than 5MB",
-        },
-        { status: 400 },
-      );
-    }
-
     const upstreamFormData = new FormData();
     upstreamFormData.append("file", fileEntry);
-    const baseName = formData.get("baseName");
-    if (typeof baseName === "string" && baseName.trim()) {
-      upstreamFormData.append("baseName", baseName.trim());
+
+    const baseNameEntry = formData.get("baseName");
+    if (typeof baseNameEntry === "string" && baseNameEntry.trim()) {
+      upstreamFormData.append("baseName", baseNameEntry.trim());
     }
 
     const requestHeaders = new Headers();
@@ -97,7 +95,7 @@ export async function POST(request: NextRequest) {
       requestHeaders.set("user-agent", incomingUserAgent);
     }
 
-    const upstream = await fetch(`${apiBaseUrl}/api/v1/media/upload/products`, {
+    const upstream = await fetch(`${apiBaseUrl}/api/v1/media/upload/${encodeURIComponent(section)}`, {
       method: "POST",
       headers: requestHeaders,
       body: upstreamFormData,

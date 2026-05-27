@@ -5,13 +5,10 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import {
   ArrowLeft,
-  GitBranchPlus,
   Loader2,
-  ListFilter,
   Plus,
   Save,
   Search,
-  Sparkles,
   Tag,
   Trash2,
   Upload,
@@ -29,11 +26,6 @@ type CategoryNode = {
 type CategoryOption = {
   id: number;
   label: string;
-};
-
-type ProductSpec = {
-  label: string;
-  value: string;
 };
 
 type ProductAttribute = {
@@ -78,9 +70,6 @@ type ProductFormData = {
   hasVariants: boolean;
   seoTitle: string;
   seoDescription: string;
-  thumbnailUrl: string;
-  galleryUrls: string[];
-  galleryInput: string;
   attributes: ProductAttribute[];
   variants: ProductVariant[];
 };
@@ -188,46 +177,6 @@ const flattenCategories = (nodes: CategoryNode[], trail = ""): CategoryOption[] 
   });
 };
 
-const trimTrailingSlash = (value: string) => value.replace(/\/+$/, "");
-
-const resolveUploadsBaseUrl = () => {
-  const explicitBase = process.env.NEXT_PUBLIC_UPLOADS_BASE_URL?.trim();
-
-  if (explicitBase) {
-    return trimTrailingSlash(explicitBase);
-  }
-
-  const apiBase = process.env.NEXT_PUBLIC_API_URL?.trim();
-  if (!apiBase) {
-    return "";
-  }
-
-  try {
-    const parsed = new URL(apiBase);
-    return `${parsed.protocol}//${parsed.host}`;
-  } catch {
-    return "";
-  }
-};
-
-const UPLOADS_BASE_URL = resolveUploadsBaseUrl();
-
-const toAbsoluteUrl = (assetUrl: string) => {
-  if (assetUrl.startsWith("http://") || assetUrl.startsWith("https://")) {
-    return assetUrl;
-  }
-
-  if (assetUrl.startsWith("/uploads/") && UPLOADS_BASE_URL) {
-    return `${UPLOADS_BASE_URL}${assetUrl}`;
-  }
-
-  if (typeof window === "undefined") {
-    return assetUrl;
-  }
-
-  return `${window.location.origin}${assetUrl}`;
-};
-
 const getErrorMessage = (error: unknown, fallback: string) => {
   if (typeof error !== "object" || error === null) {
     return fallback;
@@ -255,6 +204,7 @@ export default function AddProductPage() {
   const [variantSearch, setVariantSearch] = useState("");
   const [categoryOptions, setCategoryOptions] = useState<CategoryOption[]>([]);
   const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
+  const [galleryFiles, setGalleryFiles] = useState<File[]>([]);
   const [imagePreview, setImagePreview] = useState("");
 
   const [formData, setFormData] = useState<ProductFormData>({
@@ -275,26 +225,12 @@ export default function AddProductPage() {
     hasVariants: false,
     seoTitle: "",
     seoDescription: "",
-    thumbnailUrl: "",
-    galleryUrls: [],
-    galleryInput: "",
     attributes: [
       { name: "Size", valuesText: "250g, 500g" },
       { name: "Roast", valuesText: "Natural, Salted" },
     ],
     variants: [],
   });
-
-  useEffect(() => {
-    if (slugDirty) {
-      return;
-    }
-
-    setFormData((previous) => ({
-      ...previous,
-      slug: slugify(previous.title),
-    }));
-  }, [formData.title, slugDirty]);
 
   useEffect(() => {
     let isMounted = true;
@@ -362,6 +298,21 @@ export default function AddProductPage() {
     setImagePreview(URL.createObjectURL(file));
   };
 
+  const handleGalleryFilesChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+
+    if (files.length === 0) {
+      return;
+    }
+
+    setGalleryFiles((previous) => {
+      const existingKeys = new Set(previous.map((file) => `${file.name}-${file.size}-${file.lastModified}`));
+      const uniqueIncoming = files.filter((file) => !existingKeys.has(`${file.name}-${file.size}-${file.lastModified}`));
+
+      return [...previous, ...uniqueIncoming];
+    });
+  };
+
   const handleAddCategoryName = () => {
     const normalized = formData.categoryNameInput.trim();
 
@@ -388,30 +339,8 @@ export default function AddProductPage() {
     }));
   };
 
-  const handleAddGalleryUrl = () => {
-    const normalized = formData.galleryInput.trim();
-
-    if (!normalized) {
-      return;
-    }
-
-    if (formData.galleryUrls.includes(normalized)) {
-      setField("galleryInput", "");
-      return;
-    }
-
-    setFormData((previous) => ({
-      ...previous,
-      galleryUrls: [...previous.galleryUrls, normalized],
-      galleryInput: "",
-    }));
-  };
-
-  const handleRemoveGalleryUrl = (index: number) => {
-    setFormData((previous) => ({
-      ...previous,
-      galleryUrls: previous.galleryUrls.filter((_, currentIndex) => currentIndex !== index),
-    }));
+  const handleRemoveGalleryFile = (index: number) => {
+    setGalleryFiles((previous) => previous.filter((_, currentIndex) => currentIndex !== index));
   };
 
   const handleAttributeChange = (index: number, key: keyof ProductAttribute, value: string) => {
@@ -517,24 +446,30 @@ export default function AddProductPage() {
         throw new Error("Product description is required");
       }
 
-      let imageUrl = formData.thumbnailUrl.trim();
-
-      if (selectedImageFile) {
-        setIsUploading(true);
-        const uploadResponse = await uploadApi.uploadProductImage(selectedImageFile);
-        const localImageUrl = uploadResponse.data?.data?.url as string | undefined;
-        setIsUploading(false);
-
-        if (!localImageUrl) {
-          throw new Error("Image upload failed");
-        }
-
-        imageUrl = toAbsoluteUrl(localImageUrl);
+      if (!selectedImageFile) {
+        throw new Error("Please upload a thumbnail image from your device");
       }
 
-      if (!imageUrl) {
-        throw new Error("Please upload a thumbnail image");
+      setIsUploading(true);
+      const thumbnailUploadResponse = await uploadApi.uploadProductImage(selectedImageFile, trimmedTitle);
+      const thumbnailPath = thumbnailUploadResponse.data?.data?.path as string | undefined;
+
+      if (!thumbnailPath) {
+        throw new Error("Thumbnail upload failed");
       }
+
+      const galleryPaths = await Promise.all(
+        galleryFiles.map(async (file, index) => {
+          const response = await uploadApi.uploadProductImage(file, `${trimmedTitle}-gallery-${index + 1}`);
+          const path = response.data?.data?.path as string | undefined;
+
+          if (!path) {
+            throw new Error(`Gallery upload failed for ${file.name}`);
+          }
+
+          return path;
+        }),
+      );
 
       const categoryIds = formData.categoryId ? [Number(formData.categoryId)] : [];
       const payload: Record<string, unknown> = {
@@ -542,7 +477,7 @@ export default function AddProductPage() {
         slug: trimmedSlug,
         description: trimmedDescription,
         shortDescription: formData.shortDescription.trim() || null,
-        thumbnail: imageUrl,
+        thumbnail: thumbnailPath,
         status: intent === "publish" ? formData.status : "inactive",
         categoryIds,
         categoryNames: formData.categoryNames,
@@ -557,12 +492,12 @@ export default function AddProductPage() {
 
       payload.media = [
         {
-          url: imageUrl,
+          url: thumbnailPath,
           mediaType: "image",
           altText: trimmedTitle,
           position: 0,
         },
-        ...formData.galleryUrls.map((url, index) => ({
+        ...galleryPaths.map((url, index) => ({
           url,
           mediaType: "image",
           altText: `${trimmedTitle} gallery ${index + 1}`,
@@ -710,7 +645,15 @@ export default function AddProductPage() {
                     required
                     placeholder="e.g. Premium Kashmiri Walnuts"
                     value={formData.title}
-                    onChange={(event) => setField("title", event.target.value)}
+                    onChange={(event) => {
+                      const nextTitle = event.target.value;
+
+                      setFormData((previous) => ({
+                        ...previous,
+                        title: nextTitle,
+                        slug: slugDirty ? previous.slug : slugify(nextTitle),
+                      }));
+                    }}
                     className="w-full rounded-2xl border-none bg-gray-50 px-5 py-4 text-sm font-semibold text-gray-900 outline-none transition-all focus:ring-2 focus:ring-[#facc15]"
                   />
                 </div>
@@ -994,9 +937,6 @@ export default function AddProductPage() {
                     <div className="flex h-full flex-col items-center justify-center p-4 text-center">
                       <Upload size={32} className="mb-2 text-gray-400" />
                       <span className="text-xs font-bold uppercase text-gray-500">Select Product Image</span>
-                      {formData.thumbnailUrl ? (
-                        <span className="mt-2 break-all text-[11px] font-semibold text-gray-500">Current URL: {formData.thumbnailUrl}</span>
-                      ) : null}
                     </div>
                   )}
                   <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 transition-opacity hover:opacity-100">
@@ -1012,47 +952,47 @@ export default function AddProductPage() {
                 </p>
 
                 <div className="space-y-2">
-                  <label className="block text-xs font-black uppercase text-gray-700">Or Paste Thumbnail URL</label>
+                  <label className="block text-xs font-black uppercase text-gray-700">Gallery Images (Upload from PC)</label>
                   <input
-                    type="url"
-                    placeholder="https://..."
-                    value={formData.thumbnailUrl}
-                    onChange={(event) => setField("thumbnailUrl", event.target.value)}
-                    className="w-full rounded-2xl border-none bg-gray-50 px-4 py-3 text-sm font-semibold text-gray-900 outline-none focus:ring-2 focus:ring-[#facc15]"
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    multiple
+                    onChange={handleGalleryFilesChange}
+                    className="w-full rounded-2xl border-none bg-gray-50 px-4 py-3 text-sm font-semibold text-gray-900 outline-none file:mr-4 file:cursor-pointer file:rounded-xl file:border-0 file:bg-gray-900 file:px-3 file:py-2 file:text-xs file:font-black file:uppercase file:tracking-wider file:text-white hover:file:bg-black"
                   />
-                </div>
+                  <p className="text-[11px] font-semibold text-gray-500">
+                    Optional. Selected gallery files will be uploaded automatically before product creation.
+                  </p>
 
-                <div className="space-y-2">
-                  <label className="block text-xs font-black uppercase text-gray-700">Gallery URLs</label>
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <input
-                      type="url"
-                      placeholder="https://..."
-                      value={formData.galleryInput}
-                      onChange={(event) => setField("galleryInput", event.target.value)}
-                      className="flex-1 rounded-2xl border-none bg-gray-50 px-4 py-3 text-sm font-semibold text-gray-900 outline-none focus:ring-2 focus:ring-[#facc15]"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleAddGalleryUrl}
-                      className="rounded-2xl bg-gray-900 px-4 py-3 text-xs font-black uppercase tracking-wider text-white transition-colors hover:bg-black"
-                    >
-                      Add
-                    </button>
-                  </div>
-
-                  {formData.galleryUrls.length > 0 ? (
+                  {galleryFiles.length > 0 ? (
                     <div className="space-y-2">
-                      {formData.galleryUrls.map((url, index) => (
-                        <div key={`${url}-${index}`} className="flex items-center gap-2 rounded-xl bg-gray-50 px-3 py-2">
-                          <span className="flex-1 truncate text-[11px] font-semibold text-gray-600">{url}</span>
-                          <button type="button" onClick={() => handleRemoveGalleryUrl(index)} className="text-gray-400 hover:text-red-600">
+                      {galleryFiles.map((file, index) => (
+                        <div key={`${file.name}-${file.lastModified}-${index}`} className="flex items-center gap-2 rounded-xl bg-gray-50 px-3 py-2">
+                          <span className="flex-1 truncate text-[11px] font-semibold text-gray-600">{file.name}</span>
+                          <button type="button" onClick={() => handleRemoveGalleryFile(index)} className="text-gray-400 hover:text-red-600">
                             <Trash2 size={14} />
                           </button>
                         </div>
                       ))}
                     </div>
                   ) : null}
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-xs font-black uppercase text-gray-700">Variant Images</label>
+                  <p className="rounded-xl bg-yellow-50 px-3 py-2 text-[11px] font-semibold text-yellow-800">
+                    Variant-level image upload can be done via Media API section variants after variant records are created.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-xs font-black uppercase text-gray-700">Legacy URL Input</label>
+                  <input
+                    type="text"
+                    disabled
+                    value="Disabled - use direct upload from your computer"
+                    className="w-full rounded-2xl border-none bg-gray-100 px-4 py-3 text-sm font-semibold text-gray-500 outline-none"
+                  />
                 </div>
               </div>
             </section>
@@ -1085,7 +1025,7 @@ export default function AddProductPage() {
                   ) : (
                     <Save size={18} />
                   )}
-                  {isUploading ? "Uploading Image..." : isSaving && pendingIntent === "publish" ? "Publishing..." : "Publish Product"}
+                  {isUploading ? "Uploading Files..." : isSaving && pendingIntent === "publish" ? "Publishing..." : "Publish Product"}
                 </button>
 
                 <Link

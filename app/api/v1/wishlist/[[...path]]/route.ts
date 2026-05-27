@@ -53,6 +53,7 @@ const proxyWishlistRequest = async (request: NextRequest, context: RouteContext)
     : "";
   const targetUrl = `${apiBaseUrl}/api/v1/wishlist${pathnameSuffix}${request.nextUrl.search}`;
   const requestHeaders = new Headers();
+  const forceGuestMode = request.headers.get("x-shopping-guest-mode") === "true";
 
   const incomingContentType = request.headers.get("content-type");
   if (incomingContentType) {
@@ -60,12 +61,12 @@ const proxyWishlistRequest = async (request: NextRequest, context: RouteContext)
   }
 
   const incomingAuthorization = request.headers.get("authorization");
-  if (incomingAuthorization) {
+  if (incomingAuthorization && !forceGuestMode) {
     requestHeaders.set("authorization", incomingAuthorization);
   }
 
   const incomingCookie = request.headers.get("cookie");
-  if (incomingCookie) {
+  if (incomingCookie && !forceGuestMode) {
     requestHeaders.set("cookie", incomingCookie);
   }
 
