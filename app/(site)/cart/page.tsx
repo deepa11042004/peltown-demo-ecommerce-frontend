@@ -3,11 +3,13 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useCart } from "@/context/CartContext";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Trash2, Plus, Minus, ArrowLeft, ShoppingBag, CheckCircle2, ChevronDown } from "lucide-react";
+import { Trash2, Plus, Minus, ArrowLeft, ShoppingBag, ChevronDown } from "lucide-react";
 import toast from "react-hot-toast";
 import { productApi } from "@/lib/api";
 import { ApiProduct, mapApiProductToUiProductDetail, UiProductDetail } from "@/lib/productMapping";
+import { useAuth } from "@/context/AuthContext";
 
 const toSafeImageSrc = (value: string | undefined) => {
   const src = String(value || "").trim();
@@ -28,9 +30,9 @@ const toSafeImageSrc = (value: string | undefined) => {
 };
 
 const CartPage = () => {
+  const router = useRouter();
   const { cart, removeFromCart, updateQuantity, clearCart, cartTotal, itemCount, loading } = useCart();
-  const [isCheckingOut, setIsCheckingOut] = useState(false);
-  const [orderPlaced, setOrderPlaced] = useState(false);
+  const { isAuthenticated, loading: authLoading } = useAuth();
   const [expandedId, setExpandedId] = useState<string | number | null>(null);
   const [productDetails, setProductDetails] = useState<Record<number, UiProductDetail>>({});
 
@@ -89,41 +91,18 @@ const CartPage = () => {
   }, [uniqueProductIds]);
 
   const handleCheckout = () => {
-    setIsCheckingOut(true);
-    setTimeout(() => {
-      clearCart();
-      setIsCheckingOut(false);
-      setOrderPlaced(true);
-      toast.success("Order confirmed successfully! 🎉", { duration: 4000 });
-    }, 1500);
-  };
+    if (authLoading) {
+      return;
+    }
 
-  if (orderPlaced) {
-    return (
-      <div className="min-h-screen bg-[#fdfbf9] pt-36 pb-24 px-6 flex items-center justify-center">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="max-w-md w-full bg-white rounded-4xl p-10 text-center shadow-2xl border border-yellow-100"
-        >
-          <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6 text-green-600">
-            <CheckCircle2 size={40} />
-          </div>
-          <h2 className="text-3xl font-black text-gray-900 mb-3 tracking-tight">Order Confirmed!</h2>
-          <p className="text-gray-500 font-medium mb-8 leading-relaxed">
-            Thank you for your purchase. Your premium organic order is being processed and will be shipped soon.
-          </p>
-          <Link
-            href="/"
-            onClick={() => setOrderPlaced(false)}
-            className="inline-flex items-center justify-center gap-2 w-full bg-[#facc15] text-black py-4 rounded-full font-black text-xs uppercase tracking-widest hover:bg-black hover:text-white transition-all shadow-lg"
-          >
-            <ArrowLeft size={16} /> Return to Shop
-          </Link>
-        </motion.div>
-      </div>
-    );
-  }
+    if (!isAuthenticated) {
+      toast.error("Please login to complete checkout");
+      router.push("/login");
+      return;
+    }
+
+    router.push("/checkout");
+  };
 
   return (
     <div className="min-h-screen bg-[#fdfbf9] pt-36 pb-24 px-4 sm:px-8">
@@ -408,16 +387,10 @@ const CartPage = () => {
 
                   <button
                     onClick={handleCheckout}
-                    disabled={isCheckingOut || cart.length === 0}
+                    disabled={cart.length === 0}
                     className="w-full bg-[#facc15] text-black py-5 rounded-full font-black text-xs uppercase tracking-[0.2em] hover:bg-black hover:text-white transition-all shadow-2xl flex items-center justify-center gap-2 group disabled:opacity-50"
                   >
-                    {isCheckingOut ? (
-                      <span className="animate-pulse">Processing Secure Checkout...</span>
-                    ) : (
-                      <>
-                        <ShoppingBag size={18} /> Proceed to Secure Checkout
-                      </>
-                    )}
+                    <ShoppingBag size={18} /> {isAuthenticated ? "Proceed to Secure Checkout" : "Login to Checkout"}
                   </button>
 
                   <div className="text-center">

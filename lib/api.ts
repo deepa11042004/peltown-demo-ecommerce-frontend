@@ -66,7 +66,7 @@ const readStoredRole = () => {
   }
 };
 
-const isShopperStateRoute = (url?: string) => {
+const isGuestShoppingRoute = (url?: string) => {
   if (!url) {
     return false;
   }
@@ -131,12 +131,12 @@ api.interceptors.request.use(
 
     const role = readStoredRole();
     const shouldForceGuestMode =
-      isShopperStateRoute(config.url)
+      isGuestShoppingRoute(config.url)
       && !isShopperMergeRoute(config.url)
       && role !== "customer";
     const skipAuthorizationForShopperRequest =
       Boolean(
-        isShopperStateRoute(config.url)
+        isGuestShoppingRoute(config.url)
         && !isShopperMergeRoute(config.url)
         && (shouldForceGuestMode || (role !== null && NON_CUSTOMER_ROLES.has(role))),
       );
@@ -239,6 +239,60 @@ export const wishlistApi = {
   addItem: (data: { productId: number; variantId?: number | null }) => api.post("/v1/wishlist/items", data),
   removeItem: (id: number) => api.delete(`/v1/wishlist/items/${id}`),
   merge: () => api.post("/v1/wishlist/merge"),
+};
+
+export const addressApi = {
+  list: () => api.get("/v1/addresses"),
+  create: (data: {
+    fullName: string;
+    phone: string;
+    addressLine1: string;
+    addressLine2?: string | null;
+    city: string;
+    state: string;
+    country: string;
+    postalCode: string;
+    landmark?: string | null;
+    type?: "shipping" | "billing" | "both";
+  }) => api.post("/v1/addresses", data),
+  update: (id: number, data: {
+    fullName?: string;
+    phone?: string;
+    addressLine1?: string;
+    addressLine2?: string | null;
+    city?: string;
+    state?: string;
+    country?: string;
+    postalCode?: string;
+    landmark?: string | null;
+    type?: "shipping" | "billing" | "both";
+  }) => api.patch(`/v1/addresses/${id}`, data),
+  remove: (id: number) => api.delete(`/v1/addresses/${id}`),
+};
+
+export const checkoutApi = {
+  create: (data: {
+    shippingAddressId: number;
+    billingAddressId: number;
+    paymentMethod: "razorpay";
+    notes?: string | null;
+  }) => api.post("/v1/checkout", data),
+};
+
+export const orderApi = {
+  list: (params?: Record<string, string | number | boolean>) => api.get("/v1/orders", { params }),
+  getById: (id: number | string) => api.get(`/v1/orders/${id}`),
+  listItems: (id: number | string) => api.get(`/v1/orders/${id}/items`),
+  retryPayment: (id: number | string) => api.post(`/v1/orders/${id}/retry-payment`),
+};
+
+export const paymentApi = {
+  verify: (data: {
+    orderId: number;
+    razorpay_order_id: string;
+    razorpay_payment_id: string;
+    razorpay_signature: string;
+  }) => api.post("/v1/payments/verify", data),
 };
 
 export const categoryApi = {

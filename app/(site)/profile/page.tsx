@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -14,6 +14,7 @@ import {
   CheckCircle2,
   Truck,
   Clock,
+  AlertTriangle,
   Save,
   ShieldCheck,
   Plus,
@@ -22,42 +23,140 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "react-hot-toast";
+import { addressApi, orderApi } from "@/lib/api";
 
-const mockOrders = [
-  {
-    id: "ORD-98231",
-    date: "May 15, 2026",
-    items: "Premium Kashmiri Walnuts (2x), Pure Acacia Honey",
-    total: "₹78.00",
-    status: "Delivered",
+type OrderItem = {
+  productNameSnapshot: string;
+  quantity: number;
+};
+
+type OrderSummary = {
+  id: number;
+  orderNumber: string;
+  orderStatus: string;
+  totalAmount: number;
+  createdAt: string;
+  items?: OrderItem[];
+};
+
+type Address = {
+  id: number;
+  fullName: string;
+  phone: string;
+  addressLine1: string;
+  addressLine2?: string | null;
+  city: string;
+  state: string;
+  country: string;
+  postalCode: string;
+  landmark?: string | null;
+  type?: "shipping" | "billing" | "both";
+};
+
+type AddressFormState = {
+  fullName: string;
+  phone: string;
+  addressLine1: string;
+  addressLine2: string;
+  city: string;
+  state: string;
+  country: string;
+  postalCode: string;
+  landmark: string;
+  type: "shipping" | "billing" | "both";
+};
+
+const ORDER_STATUS_META: Record<string, { label: string; badge: string; icon: JSX.Element }> = {
+  DELIVERED: {
+    label: "Delivered",
+    badge: "bg-green-50 text-green-700 border-green-200",
     icon: <CheckCircle2 size={16} className="text-green-600" />,
-    badgeBg: "bg-green-50 text-green-700 border-green-200",
   },
-  {
-    id: "ORD-87412",
-    date: "May 02, 2026",
-    items: "Almond Healthy Fat Snack Pack",
-    total: "₹44.00",
-    status: "In Transit",
+  SHIPPED: {
+    label: "Shipped",
+    badge: "bg-yellow-50 text-yellow-700 border-yellow-200",
     icon: <Truck size={16} className="text-yellow-600" />,
-    badgeBg: "bg-yellow-50 text-yellow-700 border-yellow-200",
   },
-  {
-    id: "ORD-75622",
-    date: "Apr 18, 2026",
-    items: "Dried Saffron Berries (1x)",
-    total: "₹52.00",
-    status: "Delivered",
-    icon: <CheckCircle2 size={16} className="text-green-600" />,
-    badgeBg: "bg-green-50 text-green-700 border-green-200",
+  PROCESSING: {
+    label: "Processing",
+    badge: "bg-yellow-50 text-yellow-700 border-yellow-200",
+    icon: <Clock size={16} className="text-yellow-600" />,
   },
-];
+  CONFIRMED: {
+    label: "Confirmed",
+    badge: "bg-yellow-50 text-yellow-700 border-yellow-200",
+    icon: <CheckCircle2 size={16} className="text-yellow-600" />,
+  },
+  PENDING_PAYMENT: {
+    label: "Payment Pending",
+    badge: "bg-amber-50 text-amber-700 border-amber-200",
+    icon: <Clock size={16} className="text-amber-600" />,
+  },
+  FAILED: {
+    label: "Failed",
+    badge: "bg-red-50 text-red-700 border-red-200",
+    icon: <AlertTriangle size={16} className="text-red-600" />,
+  },
+  CANCELLED: {
+    label: "Cancelled",
+    badge: "bg-red-50 text-red-700 border-red-200",
+    icon: <AlertTriangle size={16} className="text-red-600" />,
+  },
+  REFUNDED: {
+    label: "Refunded",
+    badge: "bg-gray-100 text-gray-700 border-gray-200",
+    icon: <AlertTriangle size={16} className="text-gray-600" />,
+  },
+};
+
+const formatOrderDate = (value: string) => {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  return parsed.toLocaleDateString("en-IN", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+  });
+};
+
+const formatOrderItems = (items: OrderItem[] = []) => {
+  if (items.length === 0) {
+    return "Items pending";
+  }
+
+  return items
+    .slice(0, 3)
+    .map((item) => `${item.productNameSnapshot} (${item.quantity}x)`)
+    .join(", ");
+};
+
+const formatMoney = (value: number) => `₹${Number(value || 0).toFixed(2)}`;
+
+const formatAddressLine = (address: Address) => {
+  const parts = [
+    address.addressLine1,
+    address.addressLine2,
+    `${address.city}, ${address.state}`,
+    `${address.country} ${address.postalCode}`,
+  ].filter((entry) => entry && entry.trim());
+
+  return parts.join(", ");
+};
 
 export default function ProfilePage() {
   const router = useRouter();
   const { user, isAuthenticated, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<"details" | "orders" | "addresses" | "security">("details");
   const [isSaving, setIsSaving] = useState(false);
+  const [orders, setOrders] = useState<OrderSummary[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [ordersError, setOrdersError] = useState("");
+  const [addressLoading, setAddressLoading] = useState(false);
+  const [addressError, setAddressError] = useState("");
+  const [isCreatingAddress, setIsCreatingAddress] = useState(false);
 
   // Form states
   const [formData, setFormData] = useState({
@@ -68,57 +167,119 @@ export default function ProfilePage() {
     address: "128 Alpine Ridge Boulevard, Pampore Sector 4, Kashmir 190001",
   });
 
-  interface Address {
-    id: string;
-    label: string;
-    name: string;
-    address: string;
-    phone: string;
-    isDefault: boolean;
-  }
-
-  const [addresses, setAddresses] = useState<Address[]>([
-    {
-      id: "addr-1",
-      label: "Default Billing & Shipping",
-      name: "Akash Negi",
-      address: "128 Alpine Ridge Boulevard, Pampore Sector 4, Kashmir 190001",
-      phone: "+91 98765 43210",
-      isDefault: true,
-    },
-  ]);
+  const [addresses, setAddresses] = useState<Address[]>([]);
 
   const [isAddingAddress, setIsAddingAddress] = useState(false);
-  const [newAddress, setNewAddress] = useState({
-    label: "Home",
-    name: "",
-    address: "",
+  const [newAddress, setNewAddress] = useState<AddressFormState>({
+    fullName: "",
     phone: "",
+    addressLine1: "",
+    addressLine2: "",
+    city: "",
+    state: "",
+    country: "India",
+    postalCode: "",
+    landmark: "",
+    type: "shipping",
   });
 
-  const handleAddAddress = (e: React.FormEvent) => {
+  const loadOrders = async () => {
+    setOrdersLoading(true);
+    setOrdersError("");
+
+    try {
+      const response = await orderApi.list({ sort: "createdAt_desc" });
+      const payload = response.data?.data;
+      const items = Array.isArray(payload?.items) ? payload.items : [];
+      setOrders(items as OrderSummary[]);
+    } catch (error: any) {
+      setOrdersError(error.response?.data?.message || error.message || "Unable to load orders");
+    } finally {
+      setOrdersLoading(false);
+    }
+  };
+
+  const loadAddresses = async () => {
+    setAddressLoading(true);
+    setAddressError("");
+
+    try {
+      const response = await addressApi.list();
+      const payload = response.data?.data;
+      const items = Array.isArray(payload) ? payload : [];
+      setAddresses(items as Address[]);
+    } catch (error: any) {
+      setAddressError(error.response?.data?.message || error.message || "Unable to load addresses");
+    } finally {
+      setAddressLoading(false);
+    }
+  };
+
+  const handleAddAddress = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newAddress.name || !newAddress.address || !newAddress.phone) {
+
+    if (
+      !newAddress.fullName
+      || !newAddress.phone
+      || !newAddress.addressLine1
+      || !newAddress.city
+      || !newAddress.state
+      || !newAddress.country
+      || !newAddress.postalCode
+    ) {
       toast.error("Please fill all required fields");
       return;
     }
-    const created: Address = {
-      id: `addr-${Date.now()}`,
-      label: newAddress.label || "Home",
-      name: newAddress.name,
-      address: newAddress.address,
-      phone: newAddress.phone,
-      isDefault: addresses.length === 0,
-    };
-    setAddresses([...addresses, created]);
-    setIsAddingAddress(false);
-    setNewAddress({ label: "Home", name: "", address: "", phone: "" });
-    toast.success("New address added successfully!");
+
+    setIsCreatingAddress(true);
+
+    try {
+      const response = await addressApi.create({
+        fullName: newAddress.fullName.trim(),
+        phone: newAddress.phone.trim(),
+        addressLine1: newAddress.addressLine1.trim(),
+        addressLine2: newAddress.addressLine2.trim() || null,
+        city: newAddress.city.trim(),
+        state: newAddress.state.trim(),
+        country: newAddress.country.trim(),
+        postalCode: newAddress.postalCode.trim(),
+        landmark: newAddress.landmark.trim() || null,
+        type: newAddress.type,
+      });
+
+      const created = response.data?.data as Address | undefined;
+      if (created?.id) {
+        setAddresses((prev) => [created, ...prev]);
+      }
+      setIsAddingAddress(false);
+      setNewAddress({
+        fullName: "",
+        phone: "",
+        addressLine1: "",
+        addressLine2: "",
+        city: "",
+        state: "",
+        country: "India",
+        postalCode: "",
+        landmark: "",
+        type: "shipping",
+      });
+      toast.success("New address added successfully!");
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || error.message || "Unable to save address");
+    } finally {
+      setIsCreatingAddress(false);
+    }
   };
 
-  const handleDeleteAddress = (id: string) => {
-    setAddresses(addresses.filter((a) => a.id !== id));
-    toast.success("Address removed");
+  const handleDeleteAddress = async (id: number) => {
+    try {
+      await addressApi.remove(id);
+      setAddresses((prev) => prev.filter((addr) => addr.id !== id));
+      toast.success("Address removed");
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || error.message || "Unable to remove address");
+    }
   };
 
   useEffect(() => {
@@ -132,6 +293,25 @@ export default function ProfilePage() {
       }));
     }
   }, [user]);
+
+  useEffect(() => {
+    if (user && !newAddress.fullName) {
+      setNewAddress((prev) => ({
+        ...prev,
+        fullName: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
+      }));
+    }
+  }, [newAddress.fullName, user]);
+
+  useEffect(() => {
+    if (activeTab === "orders") {
+      void loadOrders();
+    }
+
+    if (activeTab === "addresses") {
+      void loadAddresses();
+    }
+  }, [activeTab]);
 
   // If not authenticated, redirect or show login prompt
   useEffect(() => {
@@ -350,35 +530,61 @@ export default function ProfilePage() {
                 </h2>
 
                 <div className="space-y-4">
-                  {mockOrders.map((order) => (
-                    <div
-                      key={order.id}
-                      className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-6 bg-gray-50 rounded-3xl border border-gray-100 shadow-xs gap-4"
-                    >
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-3">
-                          <span className="font-black text-base text-gray-900">{order.id}</span>
-                          <span
-                            className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border flex items-center gap-1 ${order.badgeBg}`}
-                          >
-                            {order.icon} {order.status}
-                          </span>
-                        </div>
-                        <p className="text-xs font-bold text-gray-400">Ordered on {order.date}</p>
-                        <p className="text-sm font-semibold text-gray-700 pt-1">{order.items}</p>
-                      </div>
-
-                      <div className="flex sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto pt-4 sm:pt-0 border-t sm:border-none border-gray-200">
-                        <span className="text-xl font-black text-gray-900">{order.total}</span>
-                        <Link
-                          href={`/order/${order.id}`}
-                          className="text-xs font-black uppercase text-yellow-600 hover:text-black transition-colors pt-1 tracking-wider"
-                        >
-                          View Details ➔
-                        </Link>
-                      </div>
+                  {ordersLoading ? (
+                    <div className="text-xs font-black uppercase tracking-widest text-gray-400">
+                      Loading orders...
                     </div>
-                  ))}
+                  ) : ordersError ? (
+                    <div className="text-sm font-bold text-red-500">{ordersError}</div>
+                  ) : orders.length === 0 ? (
+                    <div className="text-sm font-bold text-gray-500">No orders yet.</div>
+                  ) : (
+                    orders.map((order) => {
+                      const meta = ORDER_STATUS_META[order.orderStatus] || {
+                        label: order.orderStatus || "Processing",
+                        badge: "bg-gray-100 text-gray-700 border-gray-200",
+                        icon: <Clock size={16} className="text-gray-600" />,
+                      };
+
+                      return (
+                        <div
+                          key={order.id}
+                          className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-6 bg-gray-50 rounded-3xl border border-gray-100 shadow-xs gap-4"
+                        >
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-3">
+                              <span className="font-black text-base text-gray-900">
+                                {order.orderNumber || `#${order.id}`}
+                              </span>
+                              <span
+                                className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border flex items-center gap-1 ${meta.badge}`}
+                              >
+                                {meta.icon} {meta.label}
+                              </span>
+                            </div>
+                            <p className="text-xs font-bold text-gray-400">
+                              Ordered on {formatOrderDate(order.createdAt)}
+                            </p>
+                            <p className="text-sm font-semibold text-gray-700 pt-1">
+                              {formatOrderItems(order.items)}
+                            </p>
+                          </div>
+
+                          <div className="flex sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto pt-4 sm:pt-0 border-t sm:border-none border-gray-200">
+                            <span className="text-xl font-black text-gray-900">
+                              {formatMoney(order.totalAmount)}
+                            </span>
+                            <Link
+                              href={`/order/${order.id}`}
+                              className="text-xs font-black uppercase text-yellow-600 hover:text-black transition-colors pt-1 tracking-wider"
+                            >
+                              View Details ➔
+                            </Link>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               </motion.div>
             )}
@@ -395,27 +601,45 @@ export default function ProfilePage() {
                 </h2>
 
                 <div className="space-y-4">
-                  {addresses.map((addr) => (
-                    <div key={addr.id} className="p-6 bg-gray-50 rounded-3xl border border-gray-100 space-y-4 hover:border-yellow-200 transition-all shadow-2xs">
-                      <div className="flex items-center justify-between border-b border-gray-200 pb-3">
-                        <span className="bg-black text-[#facc15] font-black text-[10px] uppercase tracking-widest px-3 py-1 rounded-full">
-                          {addr.label}
-                        </span>
-                        <button
-                          onClick={() => handleDeleteAddress(addr.id)}
-                          className="text-xs font-black uppercase text-red-500 hover:text-red-700 transition-colors cursor-pointer flex items-center gap-1"
-                          title="Remove Address"
-                        >
-                          <Trash2 size={14} /> Remove
-                        </button>
-                      </div>
-                      <div className="space-y-1 text-sm font-semibold text-gray-700">
-                        <p className="font-black text-gray-900">{addr.name}</p>
-                        <p>{addr.address}</p>
-                        <p className="text-xs text-gray-400 pt-2">Phone: {addr.phone}</p>
-                      </div>
+                  {addressLoading ? (
+                    <div className="text-xs font-black uppercase tracking-widest text-gray-400">
+                      Loading addresses...
                     </div>
-                  ))}
+                  ) : addressError ? (
+                    <div className="text-sm font-bold text-red-500">{addressError}</div>
+                  ) : addresses.length === 0 ? (
+                    <div className="text-sm font-bold text-gray-500">No saved addresses yet.</div>
+                  ) : (
+                    addresses.map((addr) => {
+                      const label = addr.type === "billing"
+                        ? "Billing"
+                        : addr.type === "both"
+                          ? "Shipping + Billing"
+                          : "Shipping";
+
+                      return (
+                        <div key={addr.id} className="p-6 bg-gray-50 rounded-3xl border border-gray-100 space-y-4 hover:border-yellow-200 transition-all shadow-2xs">
+                          <div className="flex items-center justify-between border-b border-gray-200 pb-3">
+                            <span className="bg-black text-[#facc15] font-black text-[10px] uppercase tracking-widest px-3 py-1 rounded-full">
+                              {label}
+                            </span>
+                            <button
+                              onClick={() => handleDeleteAddress(addr.id)}
+                              className="text-xs font-black uppercase text-red-500 hover:text-red-700 transition-colors cursor-pointer flex items-center gap-1"
+                              title="Remove Address"
+                            >
+                              <Trash2 size={14} /> Remove
+                            </button>
+                          </div>
+                          <div className="space-y-1 text-sm font-semibold text-gray-700">
+                            <p className="font-black text-gray-900">{addr.fullName}</p>
+                            <p>{formatAddressLine(addr)}</p>
+                            <p className="text-xs text-gray-400 pt-2">Phone: {addr.phone}</p>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
 
                 {isAddingAddress ? (
@@ -434,27 +658,27 @@ export default function ProfilePage() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-xs font-black uppercase text-gray-700 mb-1.5 tracking-wider">
-                          Label (Home, Office, etc.)
+                          Full Name
                         </label>
                         <input
                           type="text"
                           required
-                          value={newAddress.label}
-                          onChange={(e) => setNewAddress({ ...newAddress, label: e.target.value })}
-                          placeholder="e.g. Home, Office"
+                          value={newAddress.fullName}
+                          onChange={(e) => setNewAddress({ ...newAddress, fullName: e.target.value })}
+                          placeholder="Recipient Name"
                           className="w-full px-4 py-3 bg-white border border-gray-200 rounded-2xl text-sm text-gray-900 focus:outline-none focus:border-yellow-500 font-medium transition-all"
                         />
                       </div>
                       <div>
                         <label className="block text-xs font-black uppercase text-gray-700 mb-1.5 tracking-wider">
-                          Recipient Name
+                          Phone Number
                         </label>
                         <input
                           type="text"
                           required
-                          value={newAddress.name}
-                          onChange={(e) => setNewAddress({ ...newAddress, name: e.target.value })}
-                          placeholder="Full Name"
+                          value={newAddress.phone}
+                          onChange={(e) => setNewAddress({ ...newAddress, phone: e.target.value })}
+                          placeholder="+91 98765 43210"
                           className="w-full px-4 py-3 bg-white border border-gray-200 rounded-2xl text-sm text-gray-900 focus:outline-none focus:border-yellow-500 font-medium transition-all"
                         />
                       </div>
@@ -462,30 +686,114 @@ export default function ProfilePage() {
 
                     <div>
                       <label className="block text-xs font-black uppercase text-gray-700 mb-1.5 tracking-wider">
-                        Full Street Address
-                      </label>
-                      <textarea
-                        required
-                        rows={3}
-                        value={newAddress.address}
-                        onChange={(e) => setNewAddress({ ...newAddress, address: e.target.value })}
-                        placeholder="Street address, Apartment/Suite, City, State, PIN Code"
-                        className="w-full px-4 py-3 bg-white border border-gray-200 rounded-2xl text-sm text-gray-900 focus:outline-none focus:border-yellow-500 font-medium resize-none transition-all"
-                      ></textarea>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-black uppercase text-gray-700 mb-1.5 tracking-wider">
-                        Phone Number
+                        Address Line 1
                       </label>
                       <input
                         type="text"
                         required
-                        value={newAddress.phone}
-                        onChange={(e) => setNewAddress({ ...newAddress, phone: e.target.value })}
-                        placeholder="+91 98765 43210"
+                        value={newAddress.addressLine1}
+                        onChange={(e) => setNewAddress({ ...newAddress, addressLine1: e.target.value })}
+                        placeholder="Street address"
                         className="w-full px-4 py-3 bg-white border border-gray-200 rounded-2xl text-sm text-gray-900 focus:outline-none focus:border-yellow-500 font-medium transition-all"
                       />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-black uppercase text-gray-700 mb-1.5 tracking-wider">
+                        Address Line 2
+                      </label>
+                      <input
+                        type="text"
+                        value={newAddress.addressLine2}
+                        onChange={(e) => setNewAddress({ ...newAddress, addressLine2: e.target.value })}
+                        placeholder="Apartment, suite, landmark"
+                        className="w-full px-4 py-3 bg-white border border-gray-200 rounded-2xl text-sm text-gray-900 focus:outline-none focus:border-yellow-500 font-medium transition-all"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-black uppercase text-gray-700 mb-1.5 tracking-wider">
+                          City
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={newAddress.city}
+                          onChange={(e) => setNewAddress({ ...newAddress, city: e.target.value })}
+                          className="w-full px-4 py-3 bg-white border border-gray-200 rounded-2xl text-sm text-gray-900 focus:outline-none focus:border-yellow-500 font-medium transition-all"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-black uppercase text-gray-700 mb-1.5 tracking-wider">
+                          State
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={newAddress.state}
+                          onChange={(e) => setNewAddress({ ...newAddress, state: e.target.value })}
+                          className="w-full px-4 py-3 bg-white border border-gray-200 rounded-2xl text-sm text-gray-900 focus:outline-none focus:border-yellow-500 font-medium transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-black uppercase text-gray-700 mb-1.5 tracking-wider">
+                          Country
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={newAddress.country}
+                          onChange={(e) => setNewAddress({ ...newAddress, country: e.target.value })}
+                          className="w-full px-4 py-3 bg-white border border-gray-200 rounded-2xl text-sm text-gray-900 focus:outline-none focus:border-yellow-500 font-medium transition-all"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-black uppercase text-gray-700 mb-1.5 tracking-wider">
+                          Postal Code
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={newAddress.postalCode}
+                          onChange={(e) => setNewAddress({ ...newAddress, postalCode: e.target.value })}
+                          className="w-full px-4 py-3 bg-white border border-gray-200 rounded-2xl text-sm text-gray-900 focus:outline-none focus:border-yellow-500 font-medium transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-black uppercase text-gray-700 mb-1.5 tracking-wider">
+                          Landmark
+                        </label>
+                        <input
+                          type="text"
+                          value={newAddress.landmark}
+                          onChange={(e) => setNewAddress({ ...newAddress, landmark: e.target.value })}
+                          className="w-full px-4 py-3 bg-white border border-gray-200 rounded-2xl text-sm text-gray-900 focus:outline-none focus:border-yellow-500 font-medium transition-all"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-black uppercase text-gray-700 mb-1.5 tracking-wider">
+                          Address Type
+                        </label>
+                        <select
+                          value={newAddress.type}
+                          onChange={(e) => setNewAddress({
+                            ...newAddress,
+                            type: e.target.value as AddressFormState["type"],
+                          })}
+                          className="w-full px-4 py-3 bg-white border border-gray-200 rounded-2xl text-sm text-gray-900 focus:outline-none focus:border-yellow-500 font-medium transition-all"
+                        >
+                          <option value="shipping">Shipping</option>
+                          <option value="billing">Billing</option>
+                          <option value="both">Shipping + Billing</option>
+                        </select>
+                      </div>
                     </div>
 
                     <div className="flex justify-end gap-3 pt-2">
@@ -498,9 +806,10 @@ export default function ProfilePage() {
                       </button>
                       <button
                         type="submit"
-                        className="px-8 py-3 bg-[#facc15] hover:bg-black text-black hover:text-[#facc15] rounded-full font-black text-xs uppercase tracking-widest shadow-md hover:shadow-xl transition-all cursor-pointer"
+                        disabled={isCreatingAddress}
+                        className="px-8 py-3 bg-[#facc15] hover:bg-black text-black hover:text-[#facc15] rounded-full font-black text-xs uppercase tracking-widest shadow-md hover:shadow-xl transition-all cursor-pointer disabled:opacity-60"
                       >
-                        Save Address
+                        {isCreatingAddress ? "Saving..." : "Save Address"}
                       </button>
                     </div>
                   </form>
