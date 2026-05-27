@@ -4,6 +4,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { motion } from "framer-motion";
 import { FaArrowRight, FaEnvelope, FaLock, FaShieldAlt } from "react-icons/fa";
 import { useAuth } from "@/context/AuthContext";
@@ -58,9 +59,14 @@ export default function AdminLoginPage() {
       >
         <div className="text-center mb-10">
           <Link href="/" className="inline-flex mb-6 cursor-pointer">
-            <span className="text-[24px] font-black tracking-[-0.05em] text-white">
-              PelTown
-            </span>
+            <Image
+              src="/Img/White-logo.webp"
+              alt="PelTown"
+              width={170}
+              height={48}
+              className="h-9 w-auto"
+              priority
+            />
           </Link>
           <div className="w-14 h-14 rounded-2xl bg-[#facc15]/15 border border-[#facc15]/30 text-[#facc15] flex items-center justify-center mx-auto mb-4">
             <FaShieldAlt size={24} />

@@ -5,6 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { FaEnvelope, FaLock, FaArrowRight } from 'react-icons/fa';
+import Image from 'next/image';
 
 const LoginPage = () => {
   const [email, setEmail] = useState('');
@@ -39,9 +40,14 @@ const LoginPage = () => {
       >
         <div className="text-center mb-10">
           <Link href="/" className="inline-flex mb-6 cursor-pointer">
-            <span className="text-[24px] font-black tracking-\[-0.05em] text-white">
-              PelTown
-            </span>
+            <Image
+              src="/Img/White-logo.webp"
+              alt="PelTown"
+              width={170}
+              height={48}
+              className="h-9 w-auto"
+              priority
+            />
           </Link>
           <h2 className="text-3xl font-black text-white tracking-tight mb-2">Welcome Back</h2>
           <p className="text-gray-400 font-medium">Log in to your healthy lifestyle</p>

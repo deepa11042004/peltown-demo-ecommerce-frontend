@@ -23,6 +23,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
 import { useWishlist } from "@/context/WishlistContext";
 import Link from "next/link";
+import Image from "next/image";
 interface NavItem {
   name: string;
   href: string;
@@ -123,9 +124,14 @@ const Header = () => {
               href="/"
               className="cursor-pointer inline-flex shrink-0 items-center"
             >
-              <span className="text-[24px] font-black tracking-\[-0.05em] text-black sm:text-[26px]">
-                PelTown
-              </span>
+              <Image
+                src="/Img/Black-logo.webp"
+                alt="PelTown"
+                width={170}
+                height={46}
+                className="h-8 w-auto sm:h-9"
+                priority
+              />
             </Link>
           </div>
 
@@ -312,9 +318,13 @@ const Header = () => {
             onClick={() => setIsMobileMenuOpen(false)}
             className="inline-flex items-center"
           >
-            <span className="text-[24px] font-black tracking-\[-0.05em] text-black">
-              PelTown
-            </span>
+            <Image
+              src="/Img/Black-logo.webp"
+              alt="PelTown"
+              width={155}
+              height={42}
+              className="h-8 w-auto"
+            />
           </Link>
           <button
             onClick={() => setIsMobileMenuOpen(false)}

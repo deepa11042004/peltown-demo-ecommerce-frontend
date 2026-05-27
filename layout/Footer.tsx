@@ -1,6 +1,7 @@
 "use client";
 import React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   FaFacebookF,
   FaInstagram,
@@ -44,9 +45,13 @@ const Footer = () => {
           {/* Brand & Contact */}
           <div className="flex flex-col gap-6">
             <Link href="/" className="inline-block w-fit cursor-pointer">
-              <span className="text-[24px] font-black tracking-[-0.05em] text-white transition-opacity hover:opacity-90">
-                PelTown
-              </span>
+              <Image
+                src="/Img/White-logo.webp"
+                alt="PelTown"
+                width={180}
+                height={50}
+                className="h-9 w-auto transition-opacity hover:opacity-90"
+              />
             </Link>
             <div className="flex flex-col gap-4 text-gray-400 font-medium text-sm"></div>
           </div>
