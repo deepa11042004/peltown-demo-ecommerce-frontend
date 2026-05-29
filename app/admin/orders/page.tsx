@@ -1,142 +1,410 @@
 "use client";
-import React, { useState } from "react";
-import { Search, ShoppingBag, Eye, Trash2, CheckCircle, Clock, AlertCircle, XCircle, Filter, Download } from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  AlertCircle,
+  CheckCircle,
+  Clock,
+  Download,
+  Eye,
+  Filter,
+  Loader2,
+  RotateCcw,
+  Search,
+  ShoppingBag,
+  Truck,
+  XCircle,
+} from "lucide-react";
+import { toast } from "react-hot-toast";
+import { adminOrderApi } from "@/lib/api";
 
-// Initial mock orders data
-const initialOrders = [
-  {
-    id: "ORD-7392",
-    customer: "John Doe",
-    email: "john.doe@example.com",
-    items: "Kashmiri Walnuts (2x), Kashmiri Honey (1x)",
-    date: "May 18, 2026",
-    total: "₹78.00",
-    paymentStatus: "Paid",
-    status: "Completed",
-    shippingAddress: "123 Maple Street, New York, NY 10001",
-  },
-  {
-    id: "ORD-7391",
-    customer: "Jane Smith",
-    email: "jane.smith@example.com",
-    items: "Kashmiri Almonds (3x)",
-    date: "May 17, 2026",
-    total: "₹132.00",
-    paymentStatus: "Paid",
-    status: "Processing",
-    shippingAddress: "456 Oak Avenue, Los Angeles, CA 90001",
-  },
-  {
-    id: "ORD-7390",
-    customer: "Michael Brown",
-    email: "michael.b@example.com",
-    items: "Kashmiri Blueberry (1x)",
-    date: "May 16, 2026",
-    total: "₹36.00",
-    paymentStatus: "Pending",
-    status: "Pending",
-    shippingAddress: "789 Pine Road, Chicago, IL 60007",
-  },
-  {
-    id: "ORD-7389",
-    customer: "Sarah Wilson",
-    email: "sarah.w@example.com",
-    items: "Kashmiri Dry Honey (2x), Kashmiri Walnuts (1x)",
-    date: "May 15, 2026",
-    total: "₹93.00",
-    paymentStatus: "Paid",
-    status: "Completed",
-    shippingAddress: "321 Cedar Lane, Austin, TX 73301",
-  },
-  {
-    id: "ORD-7388",
-    customer: "David Miller",
-    email: "david.m@example.com",
-    items: "Kashmiri Almonds (1x)",
-    date: "May 14, 2026",
-    total: "₹44.00",
-    paymentStatus: "Refunded",
-    status: "Cancelled",
-    shippingAddress: "654 Elm Street, Seattle, WA 98101",
-  },
-  {
-    id: "ORD-7387",
-    customer: "Emily Davis",
-    email: "emily.d@example.com",
-    items: "Kashmiri Walnuts (5x)",
-    date: "May 12, 2026",
-    total: "₹105.00",
-    paymentStatus: "Paid",
-    status: "Completed",
-    shippingAddress: "987 Birch Court, Denver, CO 80201",
-  },
+type OrderStatusValue =
+  | "PENDING_PAYMENT"
+  | "CONFIRMED"
+  | "PROCESSING"
+  | "SHIPPED"
+  | "DELIVERED"
+  | "CANCELLED"
+  | "REFUNDED"
+  | "FAILED";
+
+type PaymentStatusValue = "PENDING" | "SUCCESS" | "FAILED" | "REFUNDED";
+
+type OrderUser = {
+  fullName?: string | null;
+  email?: string | null;
+};
+
+type OrderItem = {
+  id?: number;
+  productNameSnapshot?: string | null;
+  quantity?: number | null;
+};
+
+type OrderAddress = {
+  fullName?: string | null;
+  phone?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  country?: string | null;
+  postalCode?: string | null;
+  landmark?: string | null;
+};
+
+type AdminOrder = {
+  id: number;
+  orderNumber?: string | null;
+  user?: OrderUser | null;
+  guestId?: string | null;
+  items?: OrderItem[] | null;
+  totalAmount?: number | null;
+  currency?: string | null;
+  paymentStatus?: PaymentStatusValue | string | null;
+  orderStatus?: OrderStatusValue | string | null;
+  shippingAddress?: OrderAddress | null;
+  createdAt?: string | null;
+  notes?: string | null;
+};
+
+const ORDER_STATUS_OPTIONS: { value: OrderStatusValue; label: string }[] = [
+  { value: "PENDING_PAYMENT", label: "Pending Payment" },
+  { value: "CONFIRMED", label: "Confirmed" },
+  { value: "PROCESSING", label: "Processing" },
+  { value: "SHIPPED", label: "Shipped" },
+  { value: "DELIVERED", label: "Delivered" },
+  { value: "CANCELLED", label: "Cancelled" },
+  { value: "REFUNDED", label: "Refunded" },
+  { value: "FAILED", label: "Failed" },
 ];
 
-export default function AdminOrders() {
-  const [orders, setOrders] = useState(initialOrders);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All");
-  const [selectedOrder, setSelectedOrder] = useState<typeof initialOrders[0] | null>(null);
-  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+const ORDER_STATUS_LABELS: Record<OrderStatusValue, string> = {
+  PENDING_PAYMENT: "Pending Payment",
+  CONFIRMED: "Confirmed",
+  PROCESSING: "Processing",
+  SHIPPED: "Shipped",
+  DELIVERED: "Delivered",
+  CANCELLED: "Cancelled",
+  REFUNDED: "Refunded",
+  FAILED: "Failed",
+};
 
-  // Filter orders based on search query and selected status
-  const filteredOrders = orders.filter((order) => {
-    const matchesSearch =
-      order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.customer.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.email.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    const matchesStatus = statusFilter === "All" || order.status === statusFilter;
-    
-    return matchesSearch && matchesStatus;
-  });
+const PAYMENT_STATUS_LABELS: Record<PaymentStatusValue, string> = {
+  PENDING: "Pending",
+  SUCCESS: "Paid",
+  FAILED: "Failed",
+  REFUNDED: "Refunded",
+};
 
-  const handleStatusChange = (orderId: string, newStatus: string) => {
-    setOrders((prev) =>
-      prev.map((order) => (order.id === orderId ? { ...order, status: newStatus } : order))
-    );
+const getErrorMessage = (error: unknown, fallback: string) => {
+  if (typeof error !== "object" || error === null) {
+    return fallback;
+  }
+
+  const maybeError = error as {
+    message?: string;
+    response?: {
+      data?: {
+        message?: string;
+      };
+    };
   };
 
-  const handleDeleteOrder = (orderId: string) => {
-    if (confirm(`Are you sure you want to delete order #${orderId}?`)) {
-      setOrders((prev) => prev.filter((order) => order.id !== orderId));
+  return maybeError.response?.data?.message || maybeError.message || fallback;
+};
+
+const formatOrderStatus = (status?: OrderStatusValue | string | null) => {
+  if (!status) {
+    return "Unknown";
+  }
+
+  return ORDER_STATUS_LABELS[status as OrderStatusValue]
+    || String(status).replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (char) => char.toUpperCase());
+};
+
+const formatPaymentStatus = (status?: PaymentStatusValue | string | null) => {
+  if (!status) {
+    return "Unknown";
+  }
+
+  return PAYMENT_STATUS_LABELS[status as PaymentStatusValue]
+    || String(status).replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (char) => char.toUpperCase());
+};
+
+const formatDate = (value?: string | null) => {
+  if (!value) {
+    return "—";
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  return parsed.toLocaleDateString("en-IN", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+};
+
+const formatCurrency = (amount?: number | null, currency?: string | null) => {
+  if (amount === null || amount === undefined) {
+    return "—";
+  }
+
+  const normalizedCurrency = (currency || "INR").toUpperCase();
+
+  try {
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: normalizedCurrency,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  } catch {
+    return `${amount.toFixed(2)} ${normalizedCurrency}`;
+  }
+};
+
+const formatItemsSummary = (items?: OrderItem[] | null) => {
+  if (!items || items.length === 0) {
+    return "No items";
+  }
+
+  return items
+    .map((item) => `${item.productNameSnapshot || "Item"} (${item.quantity || 0}x)`)
+    .join(", ");
+};
+
+const formatAddress = (address?: OrderAddress | null) => {
+  if (!address) {
+    return "Not available";
+  }
+
+  const parts = [
+    address.addressLine1,
+    address.addressLine2,
+    address.city,
+    address.state,
+    address.postalCode,
+    address.country,
+  ].filter(Boolean);
+
+  return parts.length > 0 ? parts.join(", ") : "Not available";
+};
+
+const mergeOrder = (current: AdminOrder, updated?: AdminOrder | null, nextStatus?: OrderStatusValue) => {
+  if (!updated) {
+    return {
+      ...current,
+      orderStatus: nextStatus || current.orderStatus,
+    };
+  }
+
+  return {
+    ...current,
+    ...updated,
+    user: updated.user || current.user,
+    items: updated.items || current.items,
+    shippingAddress: updated.shippingAddress || current.shippingAddress,
+  };
+};
+
+export default function AdminOrders() {
+  const [orders, setOrders] = useState<AdminOrder[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<OrderStatusValue | "All">("All");
+  const [selectedOrder, setSelectedOrder] = useState<AdminOrder | null>(null);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [updatingOrderId, setUpdatingOrderId] = useState<number | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadOrders = async () => {
+      setLoading(true);
+      setError("");
+
+      try {
+        const response = await adminOrderApi.list({
+          page: 1,
+          limit: 100,
+          sort: "createdAt_desc",
+        });
+        const items = (response.data?.data?.items || []) as AdminOrder[];
+
+        if (!mounted) {
+          return;
+        }
+
+        setOrders(items);
+      } catch (requestError: unknown) {
+        if (!mounted) {
+          return;
+        }
+
+        setError(getErrorMessage(requestError, "Failed to load orders"));
+        setOrders([]);
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadOrders();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const filteredOrders = useMemo(() => {
+    const normalizedSearch = searchQuery.trim().toLowerCase();
+
+    return orders.filter((order) => {
+      const orderLabel = (order.orderNumber || order.id).toString().toLowerCase();
+      const customerName = order.user?.fullName?.toLowerCase() || "guest";
+      const customerEmail = order.user?.email?.toLowerCase() || "";
+      const guestId = order.guestId?.toLowerCase() || "";
+
+      const matchesSearch =
+        !normalizedSearch
+        || orderLabel.includes(normalizedSearch)
+        || customerName.includes(normalizedSearch)
+        || customerEmail.includes(normalizedSearch)
+        || guestId.includes(normalizedSearch);
+
+      const matchesStatus = statusFilter === "All" || order.orderStatus === statusFilter;
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [orders, searchQuery, statusFilter]);
+
+  const handleStatusChange = async (order: AdminOrder, nextStatus: OrderStatusValue) => {
+    if (!order.id || order.orderStatus === nextStatus) {
+      return;
+    }
+
+    setUpdatingOrderId(order.id);
+
+    try {
+      const response = await adminOrderApi.updateStatus(order.id, nextStatus);
+      const updated = response.data?.data as AdminOrder | undefined;
+
+      setOrders((previous) =>
+        previous.map((entry) =>
+          String(entry.id) === String(order.id)
+            ? mergeOrder(entry, updated, nextStatus)
+            : entry,
+        ),
+      );
+      setSelectedOrder((previous) =>
+        previous && String(previous.id) === String(order.id)
+          ? mergeOrder(previous, updated, nextStatus)
+          : previous,
+      );
+      toast.success("Order status updated");
+    } catch (requestError: unknown) {
+      toast.error(getErrorMessage(requestError, "Failed to update order status"));
+    } finally {
+      setUpdatingOrderId(null);
     }
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status?: OrderStatusValue | string | null) => {
     switch (status) {
-      case "Completed":
+      case "DELIVERED":
         return (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-tighter bg-green-100 text-green-700 border border-green-200">
             <CheckCircle size={12} />
-            Completed
+            {formatOrderStatus(status)}
           </span>
         );
-      case "Processing":
+      case "PROCESSING":
         return (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-tighter bg-blue-100 text-blue-700 border border-blue-200">
             <Clock size={12} />
-            Processing
+            {formatOrderStatus(status)}
           </span>
         );
-      case "Pending":
+      case "PENDING_PAYMENT":
         return (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-tighter bg-amber-100 text-amber-700 border border-amber-200">
             <AlertCircle size={12} />
-            Pending
+            {formatOrderStatus(status)}
           </span>
         );
-      case "Cancelled":
+      case "SHIPPED":
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-tighter bg-purple-100 text-purple-700 border border-purple-200">
+            <Truck size={12} />
+            {formatOrderStatus(status)}
+          </span>
+        );
+      case "REFUNDED":
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-tighter bg-rose-100 text-rose-700 border border-rose-200">
+            <RotateCcw size={12} />
+            {formatOrderStatus(status)}
+          </span>
+        );
+      case "FAILED":
+      case "CANCELLED":
         return (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-tighter bg-red-100 text-red-700 border border-red-200">
             <XCircle size={12} />
-            Cancelled
+            {formatOrderStatus(status)}
+          </span>
+        );
+      case "CONFIRMED":
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-tighter bg-emerald-100 text-emerald-700 border border-emerald-200">
+            <CheckCircle size={12} />
+            {formatOrderStatus(status)}
           </span>
         );
       default:
         return (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-tighter bg-gray-100 text-gray-700 border border-gray-200">
-            {status}
+            {formatOrderStatus(status)}
+          </span>
+        );
+    }
+  };
+
+  const getPaymentBadge = (status?: PaymentStatusValue | string | null) => {
+    switch (status) {
+      case "SUCCESS":
+        return (
+          <span className="inline-block px-2.5 py-1 rounded-md text-xs font-black uppercase tracking-tight bg-emerald-50 text-emerald-600">
+            {formatPaymentStatus(status)}
+          </span>
+        );
+      case "PENDING":
+        return (
+          <span className="inline-block px-2.5 py-1 rounded-md text-xs font-black uppercase tracking-tight bg-amber-50 text-amber-600">
+            {formatPaymentStatus(status)}
+          </span>
+        );
+      case "REFUNDED":
+        return (
+          <span className="inline-block px-2.5 py-1 rounded-md text-xs font-black uppercase tracking-tight bg-rose-50 text-rose-600">
+            {formatPaymentStatus(status)}
+          </span>
+        );
+      case "FAILED":
+        return (
+          <span className="inline-block px-2.5 py-1 rounded-md text-xs font-black uppercase tracking-tight bg-red-50 text-red-600">
+            {formatPaymentStatus(status)}
+          </span>
+        );
+      default:
+        return (
+          <span className="inline-block px-2.5 py-1 rounded-md text-xs font-black uppercase tracking-tight bg-gray-50 text-gray-600">
+            {formatPaymentStatus(status)}
           </span>
         );
     }
@@ -178,21 +446,28 @@ export default function AdminOrders() {
           </div>
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(e) => setStatusFilter(e.target.value as OrderStatusValue | "All")}
             className="w-full md:w-auto bg-gray-50 border-none rounded-2xl py-3 px-6 text-sm font-bold text-gray-700 focus:ring-2 focus:ring-[#facc15] outline-none cursor-pointer"
           >
             <option value="All">All Orders</option>
-            <option value="Completed">Completed</option>
-            <option value="Processing">Processing</option>
-            <option value="Pending">Pending</option>
-            <option value="Cancelled">Cancelled</option>
+            {ORDER_STATUS_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
           </select>
         </div>
       </div>
 
       {/* Orders Table */}
       <div className="bg-white rounded-4xl border border-gray-100 shadow-xl overflow-hidden">
-        {filteredOrders.length === 0 ? (
+        {loading ? (
+          <div className="p-12 flex items-center justify-center gap-3 text-gray-500 font-bold text-sm uppercase tracking-widest">
+            <Loader2 size={18} className="animate-spin" /> Loading orders...
+          </div>
+        ) : error ? (
+          <div className="p-12 text-center text-sm font-bold text-red-600">{error}</div>
+        ) : filteredOrders.length === 0 ? (
           <div className="py-16 text-center text-gray-500">
             <ShoppingBag className="mx-auto mb-4 text-gray-300" size={48} />
             <p className="text-lg font-bold tracking-tight text-gray-800">No orders found</p>
@@ -216,39 +491,48 @@ export default function AdminOrders() {
                 {filteredOrders.map((order) => (
                   <tr key={order.id} className="hover:bg-gray-50/30 transition-colors group">
                     <td className="px-8 py-5">
-                      <span className="font-black text-gray-900 text-sm tracking-tight">#{order.id}</span>
-                      <span className="block text-xs font-bold text-gray-400 mt-0.5">{order.date}</span>
-                    </td>
-                    <td className="px-8 py-5">
-                      <div className="font-black text-gray-900">{order.customer}</div>
-                      <div className="text-xs font-bold text-gray-400">{order.email}</div>
-                    </td>
-                    <td className="px-8 py-5 max-w-xs truncate">
-                      <span className="text-sm font-semibold text-gray-700 truncate block">{order.items}</span>
-                    </td>
-                    <td className="px-8 py-5">
-                      <span className="text-base font-black text-gray-900">{order.total}</span>
-                    </td>
-                    <td className="px-8 py-5">
-                      <span className={`inline-block px-2.5 py-1 rounded-md text-xs font-black uppercase tracking-tight ${
-                        order.paymentStatus === "Paid" ? "bg-emerald-50 text-emerald-600" :
-                        order.paymentStatus === "Pending" ? "bg-amber-50 text-amber-600" :
-                        "bg-red-50 text-red-600"
-                      }`}>
-                        {order.paymentStatus}
+                      <span className="font-black text-gray-900 text-sm tracking-tight">
+                        #{order.orderNumber || order.id}
+                      </span>
+                      <span className="block text-xs font-bold text-gray-400 mt-0.5">
+                        {formatDate(order.createdAt)}
                       </span>
                     </td>
                     <td className="px-8 py-5">
-                      <select
-                        value={order.status}
-                        onChange={(e) => handleStatusChange(order.id, e.target.value)}
-                        className="bg-transparent font-bold text-xs rounded-lg py-1 px-2 border border-gray-200 focus:ring-2 focus:ring-[#facc15] outline-none cursor-pointer hover:bg-gray-50 transition-colors"
-                      >
-                        <option value="Pending">Pending</option>
-                        <option value="Processing">Processing</option>
-                        <option value="Completed">Completed</option>
-                        <option value="Cancelled">Cancelled</option>
-                      </select>
+                      <div className="font-black text-gray-900">{order.user?.fullName || "Guest"}</div>
+                      <div className="text-xs font-bold text-gray-400">{order.user?.email || order.guestId || "—"}</div>
+                    </td>
+                    <td className="px-8 py-5 max-w-xs truncate">
+                      <span className="text-sm font-semibold text-gray-700 truncate block">
+                        {formatItemsSummary(order.items || [])}
+                      </span>
+                    </td>
+                    <td className="px-8 py-5">
+                      <span className="text-base font-black text-gray-900">
+                        {formatCurrency(order.totalAmount, order.currency)}
+                      </span>
+                    </td>
+                    <td className="px-8 py-5">
+                      {getPaymentBadge(order.paymentStatus)}
+                    </td>
+                    <td className="px-8 py-5">
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={order.orderStatus || "PENDING_PAYMENT"}
+                          onChange={(e) => handleStatusChange(order, e.target.value as OrderStatusValue)}
+                          disabled={updatingOrderId === order.id}
+                          className="bg-transparent font-bold text-xs rounded-lg py-1 px-2 border border-gray-200 focus:ring-2 focus:ring-[#facc15] outline-none cursor-pointer hover:bg-gray-50 transition-colors"
+                        >
+                          {ORDER_STATUS_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                        {updatingOrderId === order.id ? (
+                          <Loader2 size={14} className="animate-spin text-gray-400" />
+                        ) : null}
+                      </div>
                     </td>
                     <td className="px-8 py-5 text-right">
                       <div className="flex justify-end gap-2 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
@@ -261,13 +545,6 @@ export default function AdminOrders() {
                           title="View Order Details"
                         >
                           <Eye size={18} />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteOrder(order.id)}
-                          className="p-2 hover:bg-red-50 rounded-lg text-gray-400 hover:text-red-600 transition-colors cursor-pointer"
-                          title="Delete Order"
-                        >
-                          <Trash2 size={18} />
                         </button>
                       </div>
                     </td>
@@ -289,8 +566,8 @@ export default function AdminOrders() {
           <div className="relative bg-white rounded-3xl shadow-2xl max-w-lg w-full p-8 z-50 space-y-6 overflow-hidden">
             <div className="flex items-center justify-between border-b border-gray-100 pb-4">
               <div>
-                <h3 className="text-xl font-black uppercase text-gray-900">Order #{selectedOrder.id}</h3>
-                <p className="text-xs font-bold text-gray-400 mt-1">{selectedOrder.date}</p>
+                <h3 className="text-xl font-black uppercase text-gray-900">Order #{selectedOrder.orderNumber || selectedOrder.id}</h3>
+                <p className="text-xs font-bold text-gray-400 mt-1">{formatDate(selectedOrder.createdAt)}</p>
               </div>
               <button
                 onClick={() => setIsViewModalOpen(false)}
@@ -303,30 +580,51 @@ export default function AdminOrders() {
             <div className="space-y-4 text-sm">
               <div>
                 <span className="text-xs font-black uppercase tracking-widest text-gray-400 block mb-1">Customer Details</span>
-                <p className="font-bold text-gray-900">{selectedOrder.customer}</p>
-                <p className="text-gray-500 font-medium">{selectedOrder.email}</p>
+                <p className="font-bold text-gray-900">{selectedOrder.user?.fullName || "Guest"}</p>
+                <p className="text-gray-500 font-medium">{selectedOrder.user?.email || selectedOrder.guestId || "—"}</p>
               </div>
 
               <div>
                 <span className="text-xs font-black uppercase tracking-widest text-gray-400 block mb-1">Shipping Address</span>
-                <p className="text-gray-700 font-medium">{selectedOrder.shippingAddress}</p>
+                <p className="text-gray-700 font-medium">{formatAddress(selectedOrder.shippingAddress)}</p>
               </div>
 
               <div>
                 <span className="text-xs font-black uppercase tracking-widest text-gray-400 block mb-1">Items Ordered</span>
-                <p className="bg-gray-50 p-3 rounded-xl text-gray-800 font-semibold">{selectedOrder.items}</p>
+                {selectedOrder.items && selectedOrder.items.length > 0 ? (
+                  <ul className="space-y-2">
+                      {selectedOrder.items.map((item, index) => (
+                        <li key={item.id ?? item.productNameSnapshot ?? index} className="bg-gray-50 p-3 rounded-xl text-gray-800 font-semibold">
+                        {item.productNameSnapshot || "Item"} ({item.quantity || 0}x)
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="bg-gray-50 p-3 rounded-xl text-gray-800 font-semibold">No items available</p>
+                )}
               </div>
+
+              {selectedOrder.notes ? (
+                <div>
+                  <span className="text-xs font-black uppercase tracking-widest text-gray-400 block mb-1">Notes</span>
+                  <p className="text-gray-700 font-medium">{selectedOrder.notes}</p>
+                </div>
+              ) : null}
 
               <div className="flex items-center justify-between pt-4 border-t border-gray-100 font-black text-lg">
                 <span className="text-gray-900">Total Amount</span>
-                <span className="text-gray-900">{selectedOrder.total}</span>
+                <span className="text-gray-900">{formatCurrency(selectedOrder.totalAmount, selectedOrder.currency)}</span>
               </div>
             </div>
 
-            <div className="flex items-center justify-between pt-2">
-              <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-4 pt-2">
+              <div className="flex items-center gap-3">
                 <span className="text-xs font-bold text-gray-500">Status:</span>
-                {getStatusBadge(selectedOrder.status)}
+                {getStatusBadge(selectedOrder.orderStatus)}
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-bold text-gray-500">Payment:</span>
+                {getPaymentBadge(selectedOrder.paymentStatus)}
               </div>
               <button
                 onClick={() => setIsViewModalOpen(false)}

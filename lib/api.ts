@@ -286,6 +286,12 @@ export const orderApi = {
   retryPayment: (id: number | string) => api.post(`/v1/orders/${id}/retry-payment`),
 };
 
+export const adminOrderApi = {
+  list: (params?: Record<string, string | number | boolean>) => api.get("/v1/admin/orders", { params }),
+  updateStatus: (id: number | string, status: string) =>
+    api.patch(`/v1/admin/orders/${id}/status`, { status }),
+};
+
 export const paymentApi = {
   verify: (data: {
     orderId: number;
