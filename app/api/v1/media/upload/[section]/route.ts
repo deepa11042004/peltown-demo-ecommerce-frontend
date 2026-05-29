@@ -10,6 +10,7 @@ const ALLOWED_SECTIONS = new Set([
   "categories",
   "brands",
   "users",
+  "hero-banners",
   "temp",
 ]);
 

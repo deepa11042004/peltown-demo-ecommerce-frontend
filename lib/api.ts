@@ -295,12 +295,34 @@ export const paymentApi = {
   }) => api.post("/v1/payments/verify", data),
 };
 
+export const heroBannerApi = {
+  listPublic: () => api.get("/v1/hero-banners"),
+  listAdmin: () => api.get("/v1/hero-banners/admin"),
+  create: (data: {
+    title: string;
+    subtitle?: string | null;
+    link?: string | null;
+    image: string;
+    isActive?: boolean;
+    sortOrder?: number;
+  }) => api.post("/v1/hero-banners", data),
+  update: (id: number | string, data: {
+    title?: string;
+    subtitle?: string | null;
+    link?: string | null;
+    image?: string;
+    isActive?: boolean;
+    sortOrder?: number;
+  }) => api.patch(`/v1/hero-banners/${id}`, data),
+  remove: (id: number | string) => api.delete(`/v1/hero-banners/${id}`),
+};
+
 export const categoryApi = {
   getTree: (params?: { status?: "active" | "inactive" }) =>
     api.get("/v1/categories/tree", { params }),
 };
 
-type MediaSection = "products" | "variants" | "categories" | "brands" | "users" | "temp";
+type MediaSection = "products" | "variants" | "categories" | "brands" | "users" | "hero-banners" | "temp";
 
 export const uploadApi = {
   uploadMedia: (section: MediaSection, file: File, baseName?: string) => {
@@ -320,6 +342,10 @@ export const uploadApi = {
 
   uploadProductImage: (file: File, baseName?: string) => {
     return uploadApi.uploadMedia("products", file, baseName);
+  },
+
+  uploadHeroBannerImage: (file: File, baseName?: string) => {
+    return uploadApi.uploadMedia("hero-banners", file, baseName);
   },
 };
 
