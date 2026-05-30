@@ -231,6 +231,8 @@ export const cartApi = {
   updateItem: (id: number, data: { quantity: number }) => api.patch(`/v1/cart/items/${id}`, data),
   removeItem: (id: number) => api.delete(`/v1/cart/items/${id}`),
   clear: () => api.delete("/v1/cart/clear"),
+  applyCoupon: (couponCode: string) => api.post("/v1/cart/apply-coupon", { couponCode }),
+  removeCoupon: () => api.delete("/v1/cart/remove-coupon"),
   merge: () => api.post("/v1/cart/merge"),
 };
 
@@ -275,6 +277,7 @@ export const checkoutApi = {
     shippingAddressId: number;
     billingAddressId: number;
     paymentMethod: "razorpay";
+    couponCode?: string | null;
     notes?: string | null;
   }) => api.post("/v1/checkout", data),
 };
@@ -290,6 +293,47 @@ export const adminOrderApi = {
   list: (params?: Record<string, string | number | boolean>) => api.get("/v1/admin/orders", { params }),
   updateStatus: (id: number | string, status: string) =>
     api.patch(`/v1/admin/orders/${id}/status`, { status }),
+};
+
+export const adminCouponApi = {
+  list: (params?: Record<string, string | number | boolean>) => api.get("/v1/admin/coupons", { params }),
+  create: (data: {
+    code: string;
+    title: string;
+    description?: string | null;
+    couponType: "PERCENTAGE" | "FIXED_AMOUNT";
+    discountValue: number;
+    minimumOrderAmount?: number;
+    maximumDiscountAmount?: number | null;
+    usageLimit?: number | null;
+    perUserUsageLimit?: number | null;
+    startsAt: string;
+    expiresAt: string;
+    isActive?: boolean;
+    stackable?: boolean;
+    productIds?: number[];
+    categoryIds?: number[];
+  }) => api.post("/v1/admin/coupons", data),
+  update: (id: number | string, data: {
+    code?: string;
+    title?: string;
+    description?: string | null;
+    couponType?: "PERCENTAGE" | "FIXED_AMOUNT";
+    discountValue?: number;
+    minimumOrderAmount?: number;
+    maximumDiscountAmount?: number | null;
+    usageLimit?: number | null;
+    perUserUsageLimit?: number | null;
+    startsAt?: string;
+    expiresAt?: string;
+    isActive?: boolean;
+    stackable?: boolean;
+    productIds?: number[];
+    categoryIds?: number[];
+  }) => api.put(`/v1/admin/coupons/${id}`, data),
+  toggle: (id: number | string, isActive: boolean) =>
+    api.patch(`/v1/admin/coupons/${id}/toggle`, { isActive }),
+  remove: (id: number | string) => api.delete(`/v1/admin/coupons/${id}`),
 };
 
 export const paymentApi = {

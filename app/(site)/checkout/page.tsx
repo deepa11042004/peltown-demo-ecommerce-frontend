@@ -13,7 +13,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import toast from "react-hot-toast";
-import { addressApi, checkoutApi, paymentApi } from "@/lib/api";
+import { addressApi, cartApi, checkoutApi, paymentApi } from "@/lib/api";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import { loadRazorpayCheckout } from "../../../lib/razorpay";
@@ -45,6 +45,25 @@ type AddressFormState = {
   type: "shipping" | "billing" | "both";
 };
 
+type CouponView = {
+  id: number;
+  code: string;
+  title?: string | null;
+  type: "PERCENTAGE" | "FIXED_AMOUNT";
+  discountValue: number;
+  maximumDiscountAmount?: number | null;
+};
+
+type PricingSummary = {
+  subtotal: number;
+  eligibleSubtotal: number;
+  discount: number;
+  shipping: number;
+  tax: number;
+  total: number;
+  currency: string;
+};
+
 const buildAddressLabel = (address: Address) => {
   if (address.type === "billing") {
     return "Billing";
@@ -72,6 +91,23 @@ const formatMoney = (value: number) => {
   return `₹${value.toFixed(2)}`;
 };
 
+const getErrorMessage = (error: unknown, fallback: string) => {
+  if (typeof error !== "object" || error === null) {
+    return fallback;
+  }
+
+  const maybeError = error as {
+    message?: string;
+    response?: {
+      data?: {
+        message?: string;
+      };
+    };
+  };
+
+  return maybeError.response?.data?.message || maybeError.message || fallback;
+};
+
 const CheckoutPage = () => {
   const router = useRouter();
   const { cart, cartTotal, itemCount, clearCart, refreshCart, loading } = useCart();
@@ -87,6 +123,10 @@ const CheckoutPage = () => {
   const [isCreatingAddress, setIsCreatingAddress] = useState(false);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [notes, setNotes] = useState("");
+  const [couponCodeInput, setCouponCodeInput] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<CouponView | null>(null);
+  const [pricingSummary, setPricingSummary] = useState<PricingSummary | null>(null);
+  const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
   const [addressForm, setAddressForm] = useState<AddressFormState>({
     fullName: "",
     phone: "",
@@ -151,6 +191,12 @@ const CheckoutPage = () => {
     ? selectedShippingId
     : selectedBillingId;
 
+  const orderSubtotal = pricingSummary?.subtotal ?? cartTotal;
+  const orderDiscount = pricingSummary?.discount ?? 0;
+  const orderShipping = pricingSummary?.shipping ?? 0;
+  const orderTax = pricingSummary?.tax ?? 0;
+  const orderTotal = pricingSummary?.total ?? cartTotal;
+
   const handleCreateAddress = async (event: React.FormEvent) => {
     event.preventDefault();
     setIsCreatingAddress(true);
@@ -212,6 +258,7 @@ const CheckoutPage = () => {
         shippingAddressId: selectedShippingId,
         billingAddressId: effectiveBillingId,
         paymentMethod: "razorpay",
+        couponCode: appliedCoupon?.code || null,
         notes: notes.trim() || null,
       });
 
@@ -245,6 +292,53 @@ const CheckoutPage = () => {
       toast.error(error.response?.data?.message || error.message || "Unable to start checkout");
     } finally {
       setIsPlacingOrder(false);
+    }
+  };
+
+  const handleApplyCoupon = async () => {
+    const normalized = couponCodeInput.trim().toUpperCase();
+
+    if (!normalized) {
+      toast.error("Please enter a coupon code");
+      return;
+    }
+
+    setIsApplyingCoupon(true);
+
+    try {
+      const response = await cartApi.applyCoupon(normalized);
+      const payload = response.data?.data;
+      const coupon = payload?.coupon as CouponView | undefined;
+      const pricing = payload?.pricing as PricingSummary | undefined;
+
+      if (!coupon || !pricing) {
+        throw new Error("Invalid coupon response");
+      }
+
+      setAppliedCoupon(coupon);
+      setPricingSummary(pricing);
+      setCouponCodeInput(coupon.code);
+      toast.success("Coupon applied successfully");
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "Unable to apply coupon"));
+    } finally {
+      setIsApplyingCoupon(false);
+    }
+  };
+
+  const handleRemoveCoupon = async () => {
+    setIsApplyingCoupon(true);
+
+    try {
+      await cartApi.removeCoupon();
+      setAppliedCoupon(null);
+      setPricingSummary(null);
+      setCouponCodeInput("");
+      toast.success("Coupon removed");
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "Unable to remove coupon"));
+    } finally {
+      setIsApplyingCoupon(false);
     }
   };
 
@@ -682,19 +776,25 @@ const CheckoutPage = () => {
               <div className="space-y-3 text-sm text-gray-600 font-medium border-t border-gray-100 pt-4">
                 <div className="flex justify-between">
                   <span>Subtotal ({itemCount} items)</span>
-                  <span className="font-bold text-gray-900">{formatMoney(cartTotal)}</span>
+                  <span className="font-bold text-gray-900">{formatMoney(orderSubtotal)}</span>
                 </div>
+                {orderDiscount > 0 && (
+                  <div className="flex justify-between text-green-700">
+                    <span>Coupon Discount</span>
+                    <span className="font-bold">-{formatMoney(orderDiscount)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span>Shipping</span>
-                  <span className="font-bold text-green-600">FREE</span>
+                  <span className="font-bold text-green-600">{orderShipping <= 0 ? "FREE" : formatMoney(orderShipping)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Estimated Tax</span>
-                  <span className="font-bold text-gray-900">₹0.00</span>
+                  <span className="font-bold text-gray-900">{formatMoney(orderTax)}</span>
                 </div>
                 <div className="border-t border-gray-100 pt-4 flex justify-between items-center text-lg font-black text-gray-900">
                   <span>Grand Total</span>
-                  <span className="text-2xl text-[#facc15]">{formatMoney(cartTotal)}</span>
+                  <span className="text-2xl text-[#facc15]">{formatMoney(orderTotal)}</span>
                 </div>
               </div>
 
@@ -705,6 +805,44 @@ const CheckoutPage = () => {
               >
                 {isPlacingOrder ? "Starting secure payment..." : "Place Order & Pay"}
               </button>
+
+              <div className="space-y-3 border-t border-gray-100 pt-4">
+                <label className="block text-xs font-black uppercase tracking-wider text-gray-500">Coupon Code</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={couponCodeInput}
+                    onChange={(event) => setCouponCodeInput(event.target.value.toUpperCase())}
+                    placeholder="Enter code"
+                    className="w-full bg-gray-50 border border-gray-200 rounded-2xl py-3 pl-4 pr-24 text-sm font-semibold uppercase"
+                    disabled={Boolean(appliedCoupon)}
+                  />
+                  {appliedCoupon ? (
+                    <button
+                      type="button"
+                      onClick={handleRemoveCoupon}
+                      disabled={isApplyingCoupon}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-2 rounded-xl bg-gray-200 text-gray-800 text-[11px] font-black uppercase tracking-wider disabled:opacity-60"
+                    >
+                      Remove
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleApplyCoupon}
+                      disabled={isApplyingCoupon}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-2 rounded-xl bg-black text-[#facc15] text-[11px] font-black uppercase tracking-wider disabled:opacity-60"
+                    >
+                      Apply
+                    </button>
+                  )}
+                </div>
+                {appliedCoupon && (
+                  <p className="text-xs font-bold text-green-700">
+                    Applied {appliedCoupon.code} ({appliedCoupon.type === "PERCENTAGE" ? `${appliedCoupon.discountValue}%` : formatMoney(appliedCoupon.discountValue)})
+                  </p>
+                )}
+              </div>
 
               <p className="text-center text-[11px] font-bold text-gray-400 uppercase tracking-widest">
                 Secure checkout powered by Razorpay

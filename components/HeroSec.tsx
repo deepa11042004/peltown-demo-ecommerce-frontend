@@ -166,8 +166,8 @@ const HeroSec = () => {
       <div className="absolute inset-0 bg-black/30 z-10" />
 
       {/* Content Container */}
-      <div className="relative z-20 container mx-auto px-6 sm:px-12">
-        <div className="max-w-3xl text-white mx-auto flex flex-col items-center text-center">
+      <div className="relative z-20 container mx-auto min-h-screen px-6 sm:px-12">
+        <div className="flex min-h-screen flex-col items-center justify-center text-center text-white pb-28 sm:pb-32 lg:pb-36">
           <AnimatePresence mode="wait">
             <motion.div
               key={`hero-copy-${activeSlide.id}`}
@@ -205,59 +205,59 @@ const HeroSec = () => {
               </Link>
             </motion.div>
           </AnimatePresence>
-
-          <motion.div
-            drag="x"
-            dragConstraints={{ left: 0, right: 0 }}
-            onDragEnd={handleDragEnd}
-            className="mt-35 flex flex-col items-center gap-6 sm:mt-32 lg:mt-36"
-          >
-            <div className="flex items-center gap-4">
-              <button
-                type="button"
-                onPointerDown={(event) => event.stopPropagation()}
-                onClick={prevSlide}
-                className="h-9 w-9 p-2 border border-white/40 bg-white/10 rounded-full hover:bg-white hover:text-black transition-all duration-300"
-                aria-label="Previous slide"
-              >
-                <ChevronLeft size={16} />
-              </button>
-
-              <div className="flex items-center gap-2">
-                {slides.map((slide, index) => (
-                  <button
-                    type="button"
-                    key={`hero-dot-${slide.id}`}
-                    onClick={() => setCurrentIndex(index)}
-                    className={`h-2 rounded-full transition-all duration-500 ${
-                      index === currentIndex
-                        ? "w-10 bg-[#facc15]"
-                        : "w-2 bg-white/40"
-                    }`}
-                    aria-label={`Go to slide ${index + 1}`}
-                  />
-                ))}
-              </div>
-
-              <button
-                type="button"
-                onPointerDown={(event) => event.stopPropagation()}
-                onClick={nextSlide}
-                className="h-9 w-9 p-2 border border-[#facc15] bg-[#facc15] text-black rounded-full hover:bg-white transition-all duration-300"
-                aria-label="Next slide"
-              >
-                <ChevronRight size={16} />
-              </button>
-            </div>
-
-            {loadError && !isLoading ? (
-              <p className="text-xs font-bold uppercase tracking-widest text-red-200">
-                {loadError}
-              </p>
-            ) : null}
-          </motion.div>
         </div>
       </div>
+
+      <motion.div
+        drag="x"
+        dragConstraints={{ left: 0, right: 0 }}
+        onDragEnd={handleDragEnd}
+        className="absolute inset-x-0 bottom-6 z-30 flex flex-col items-center gap-4 px-6 sm:bottom-8 sm:gap-6"
+      >
+        <div className="flex items-center gap-4">
+          <button
+            type="button"
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={prevSlide}
+            className="h-9 w-9 p-2 border border-white/40 bg-white/10 rounded-full hover:bg-white hover:text-black transition-all duration-300"
+            aria-label="Previous slide"
+          >
+            <ChevronLeft size={16} />
+          </button>
+
+          <div className="flex items-center gap-2">
+            {slides.map((slide, index) => (
+              <button
+                type="button"
+                key={`hero-dot-${slide.id}`}
+                onClick={() => setCurrentIndex(index)}
+                className={`h-2 rounded-full transition-all duration-500 ${
+                  index === currentIndex
+                    ? "w-10 bg-[#facc15]"
+                    : "w-2 bg-white/40"
+                }`}
+                aria-label={`Go to slide ${index + 1}`}
+              />
+            ))}
+          </div>
+
+          <button
+            type="button"
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={nextSlide}
+            className="h-9 w-9 p-2 border border-[#facc15] bg-[#facc15] text-black rounded-full hover:bg-white transition-all duration-300"
+            aria-label="Next slide"
+          >
+            <ChevronRight size={16} />
+          </button>
+        </div>
+
+        {loadError && !isLoading ? (
+          <p className="text-xs font-bold uppercase tracking-widest text-red-200">
+            {loadError}
+          </p>
+        ) : null}
+      </motion.div>
     </section>
   );
 };
