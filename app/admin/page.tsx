@@ -65,16 +65,24 @@ const getOrderStatusClasses = (status?: string | null) => {
     return "bg-green-100 text-green-700";
   }
 
-  if (normalizedStatus === "PROCESSING" || normalizedStatus === "CONFIRMED") {
+  if (["PROCESSING", "CONFIRMED", "PACKED"].includes(normalizedStatus || "")) {
     return "bg-blue-100 text-blue-700";
   }
 
-  if (normalizedStatus === "SHIPPED") {
+  if (["SHIPPED", "OUT_FOR_DELIVERY"].includes(normalizedStatus || "")) {
     return "bg-sky-100 text-sky-700";
   }
 
-  if (normalizedStatus === "CANCELLED" || normalizedStatus === "FAILED" || normalizedStatus === "REFUNDED") {
+  if (["RETURN_REQUESTED", "REFUND_PENDING"].includes(normalizedStatus || "")) {
+    return "bg-amber-100 text-amber-700";
+  }
+
+  if (["CANCELLED", "FAILED", "REFUNDED", "RETURN_REJECTED"].includes(normalizedStatus || "")) {
     return "bg-red-100 text-red-700";
+  }
+
+  if (normalizedStatus === "RETURN_APPROVED") {
+    return "bg-emerald-100 text-emerald-700";
   }
 
   return "bg-yellow-100 text-yellow-700";

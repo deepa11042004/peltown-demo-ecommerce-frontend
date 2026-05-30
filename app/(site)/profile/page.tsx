@@ -50,7 +50,10 @@ type Address = {
   country: string;
   postalCode: string;
   landmark?: string | null;
+  label?: string | null;
   type?: "shipping" | "billing" | "both";
+  isDefaultShipping?: boolean;
+  isDefaultBilling?: boolean;
 };
 
 type AddressFormState = {
@@ -63,7 +66,10 @@ type AddressFormState = {
   country: string;
   postalCode: string;
   landmark: string;
+  label: string;
   type: "shipping" | "billing" | "both";
+  isDefaultShipping: boolean;
+  isDefaultBilling: boolean;
 };
 
 const ORDER_STATUS_META: Record<string, { label: string; badge: string; icon: React.ReactNode }> = {
@@ -72,10 +78,20 @@ const ORDER_STATUS_META: Record<string, { label: string; badge: string; icon: Re
     badge: "bg-green-50 text-green-700 border-green-200",
     icon: <CheckCircle2 size={16} className="text-green-600" />,
   },
+  OUT_FOR_DELIVERY: {
+    label: "Out for Delivery",
+    badge: "bg-sky-50 text-sky-700 border-sky-200",
+    icon: <Truck size={16} className="text-sky-600" />,
+  },
   SHIPPED: {
     label: "Shipped",
     badge: "bg-yellow-50 text-yellow-700 border-yellow-200",
     icon: <Truck size={16} className="text-yellow-600" />,
+  },
+  PACKED: {
+    label: "Packed",
+    badge: "bg-indigo-50 text-indigo-700 border-indigo-200",
+    icon: <ShoppingBag size={16} className="text-indigo-600" />,
   },
   PROCESSING: {
     label: "Processing",
@@ -102,10 +118,30 @@ const ORDER_STATUS_META: Record<string, { label: string; badge: string; icon: Re
     badge: "bg-red-50 text-red-700 border-red-200",
     icon: <AlertTriangle size={16} className="text-red-600" />,
   },
+  RETURN_REQUESTED: {
+    label: "Return Requested",
+    badge: "bg-amber-50 text-amber-700 border-amber-200",
+    icon: <AlertTriangle size={16} className="text-amber-600" />,
+  },
+  RETURN_APPROVED: {
+    label: "Return Approved",
+    badge: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    icon: <CheckCircle2 size={16} className="text-emerald-600" />,
+  },
+  RETURN_REJECTED: {
+    label: "Return Rejected",
+    badge: "bg-rose-50 text-rose-700 border-rose-200",
+    icon: <AlertTriangle size={16} className="text-rose-600" />,
+  },
+  REFUND_PENDING: {
+    label: "Refund Pending",
+    badge: "bg-amber-50 text-amber-700 border-amber-200",
+    icon: <Clock size={16} className="text-amber-600" />,
+  },
   REFUNDED: {
     label: "Refunded",
-    badge: "bg-gray-100 text-gray-700 border-gray-200",
-    icon: <AlertTriangle size={16} className="text-gray-600" />,
+    badge: "bg-rose-50 text-rose-700 border-rose-200",
+    icon: <AlertTriangle size={16} className="text-rose-600" />,
   },
 };
 
@@ -180,7 +216,10 @@ export default function ProfilePage() {
     country: "India",
     postalCode: "",
     landmark: "",
+    label: "",
     type: "shipping",
+    isDefaultShipping: false,
+    isDefaultBilling: false,
   });
 
   const loadOrders = async () => {
@@ -244,7 +283,10 @@ export default function ProfilePage() {
         country: newAddress.country.trim(),
         postalCode: newAddress.postalCode.trim(),
         landmark: newAddress.landmark.trim() || null,
+        label: newAddress.label.trim() || null,
         type: newAddress.type,
+        isDefaultShipping: newAddress.isDefaultShipping,
+        isDefaultBilling: newAddress.isDefaultBilling,
       });
 
       const created = response.data?.data as Address | undefined;
@@ -262,7 +304,10 @@ export default function ProfilePage() {
         country: "India",
         postalCode: "",
         landmark: "",
+        label: "",
         type: "shipping",
+        isDefaultShipping: false,
+        isDefaultBilling: false,
       });
       toast.success("New address added successfully!");
     } catch (error: any) {
@@ -611,18 +656,31 @@ export default function ProfilePage() {
                     <div className="text-sm font-bold text-gray-500">No saved addresses yet.</div>
                   ) : (
                     addresses.map((addr) => {
-                      const label = addr.type === "billing"
+                      const typeLabel = addr.type === "billing"
                         ? "Billing"
                         : addr.type === "both"
                           ? "Shipping + Billing"
                           : "Shipping";
+                      const label = addr.label?.trim() || typeLabel;
 
                       return (
                         <div key={addr.id} className="p-6 bg-gray-50 rounded-3xl border border-gray-100 space-y-4 hover:border-yellow-200 transition-all shadow-2xs">
                           <div className="flex items-center justify-between border-b border-gray-200 pb-3">
-                            <span className="bg-black text-[#facc15] font-black text-[10px] uppercase tracking-widest px-3 py-1 rounded-full">
-                              {label}
-                            </span>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="bg-black text-[#facc15] font-black text-[10px] uppercase tracking-widest px-3 py-1 rounded-full">
+                                {label}
+                              </span>
+                              {addr.isDefaultShipping && (
+                                <span className="bg-yellow-50 text-yellow-700 border border-yellow-200 font-black text-[9px] uppercase tracking-widest px-2.5 py-1 rounded-full">
+                                  Default Shipping
+                                </span>
+                              )}
+                              {addr.isDefaultBilling && (
+                                <span className="bg-blue-50 text-blue-700 border border-blue-200 font-black text-[9px] uppercase tracking-widest px-2.5 py-1 rounded-full">
+                                  Default Billing
+                                </span>
+                              )}
+                            </div>
                             <button
                               onClick={() => handleDeleteAddress(addr.id)}
                               className="text-xs font-black uppercase text-red-500 hover:text-red-700 transition-colors cursor-pointer flex items-center gap-1"
@@ -711,6 +769,19 @@ export default function ProfilePage() {
                       />
                     </div>
 
+                    <div>
+                      <label className="block text-xs font-black uppercase text-gray-700 mb-1.5 tracking-wider">
+                        Label (optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={newAddress.label}
+                        onChange={(e) => setNewAddress({ ...newAddress, label: e.target.value })}
+                        placeholder="Home, Office, Warehouse"
+                        className="w-full px-4 py-3 bg-white border border-gray-200 rounded-2xl text-sm text-gray-900 focus:outline-none focus:border-yellow-500 font-medium transition-all"
+                      />
+                    </div>
+
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-xs font-black uppercase text-gray-700 mb-1.5 tracking-wider">
@@ -794,6 +865,27 @@ export default function ProfilePage() {
                           <option value="both">Shipping + Billing</option>
                         </select>
                       </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <label className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-gray-600">
+                        <input
+                          type="checkbox"
+                          checked={newAddress.isDefaultShipping}
+                          onChange={(e) => setNewAddress({ ...newAddress, isDefaultShipping: e.target.checked })}
+                          className="accent-black"
+                        />
+                        Default Shipping
+                      </label>
+                      <label className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-gray-600">
+                        <input
+                          type="checkbox"
+                          checked={newAddress.isDefaultBilling}
+                          onChange={(e) => setNewAddress({ ...newAddress, isDefaultBilling: e.target.checked })}
+                          className="accent-black"
+                        />
+                        Default Billing
+                      </label>
                     </div>
 
                     <div className="flex justify-end gap-3 pt-2">

@@ -67,9 +67,15 @@ const STATUS_LABELS: Record<string, string> = {
   PENDING_PAYMENT: "Payment Pending",
   CONFIRMED: "Confirmed",
   PROCESSING: "Processing",
+  PACKED: "Packed",
   SHIPPED: "Shipped",
+  OUT_FOR_DELIVERY: "Out for Delivery",
   DELIVERED: "Delivered",
   CANCELLED: "Cancelled",
+  RETURN_REQUESTED: "Return Requested",
+  RETURN_APPROVED: "Return Approved",
+  RETURN_REJECTED: "Return Rejected",
+  REFUND_PENDING: "Refund Pending",
   REFUNDED: "Refunded",
   FAILED: "Failed",
 };
@@ -79,9 +85,17 @@ const STATUS_STYLES: Record<string, { badge: string; icon: React.ReactNode }> = 
     badge: "bg-green-50 text-green-700 border-green-200",
     icon: <CheckCircle2 size={14} className="text-green-600" />,
   },
+  OUT_FOR_DELIVERY: {
+    badge: "bg-sky-50 text-sky-700 border-sky-200",
+    icon: <Truck size={14} className="text-sky-600" />,
+  },
   SHIPPED: {
     badge: "bg-yellow-50 text-yellow-700 border-yellow-200",
     icon: <Truck size={14} className="text-yellow-600" />,
+  },
+  PACKED: {
+    badge: "bg-indigo-50 text-indigo-700 border-indigo-200",
+    icon: <Package size={14} className="text-indigo-600" />,
   },
   PROCESSING: {
     badge: "bg-yellow-50 text-yellow-700 border-yellow-200",
@@ -103,10 +117,62 @@ const STATUS_STYLES: Record<string, { badge: string; icon: React.ReactNode }> = 
     badge: "bg-red-50 text-red-700 border-red-200",
     icon: <AlertTriangle size={14} className="text-red-600" />,
   },
-  REFUNDED: {
-    badge: "bg-gray-100 text-gray-700 border-gray-200",
-    icon: <AlertTriangle size={14} className="text-gray-600" />,
+  RETURN_REQUESTED: {
+    badge: "bg-amber-50 text-amber-700 border-amber-200",
+    icon: <RotateCcw size={14} className="text-amber-600" />,
   },
+  RETURN_APPROVED: {
+    badge: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    icon: <CheckCircle2 size={14} className="text-emerald-600" />,
+  },
+  RETURN_REJECTED: {
+    badge: "bg-rose-50 text-rose-700 border-rose-200",
+    icon: <AlertTriangle size={14} className="text-rose-600" />,
+  },
+  REFUND_PENDING: {
+    badge: "bg-amber-50 text-amber-700 border-amber-200",
+    icon: <Clock size={14} className="text-amber-600" />,
+  },
+  REFUNDED: {
+    badge: "bg-rose-50 text-rose-700 border-rose-200",
+    icon: <RotateCcw size={14} className="text-rose-600" />,
+  },
+};
+
+const ORDER_PROGRESS_STEPS = [
+  "Order Placed",
+  "Confirmed",
+  "Processing",
+  "Packed",
+  "Shipped",
+  "Out for Delivery",
+  "Delivered",
+];
+
+const getProgressIndex = (status?: string | null) => {
+  if (!status) {
+    return 0;
+  }
+
+  const map: Record<string, number> = {
+    PENDING_PAYMENT: 0,
+    CONFIRMED: 1,
+    PROCESSING: 2,
+    PACKED: 3,
+    SHIPPED: 4,
+    OUT_FOR_DELIVERY: 5,
+    DELIVERED: 6,
+  };
+
+  if (Object.prototype.hasOwnProperty.call(map, status)) {
+    return map[status];
+  }
+
+  if (["RETURN_REQUESTED", "RETURN_APPROVED", "RETURN_REJECTED", "REFUND_PENDING", "REFUNDED"].includes(status)) {
+    return ORDER_PROGRESS_STEPS.length - 1;
+  }
+
+  return 0;
 };
 
 const formatDateTime = (value?: string) => {
@@ -129,6 +195,23 @@ const formatDateTime = (value?: string) => {
 };
 
 const formatMoney = (value: number) => `₹${Number(value || 0).toFixed(2)}`;
+
+const getErrorMessage = (error: unknown, fallback: string) => {
+  if (typeof error !== "object" || error === null) {
+    return fallback;
+  }
+
+  const maybeError = error as {
+    message?: string;
+    response?: {
+      data?: {
+        message?: string;
+      };
+    };
+  };
+
+  return maybeError.response?.data?.message || maybeError.message || fallback;
+};
 
 const resolveUploadsBaseUrl = () => {
   const explicitBase = process.env.NEXT_PUBLIC_UPLOADS_BASE_URL?.trim();
@@ -190,6 +273,7 @@ export default function OrderDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [loadingError, setLoadingError] = useState("");
   const [isRetrying, setIsRetrying] = useState(false);
+  const [isUpdatingOrder, setIsUpdatingOrder] = useState(false);
 
   const loadOrder = async () => {
     if (!Number.isFinite(orderId)) {
@@ -222,31 +306,11 @@ export default function OrderDetailsPage() {
   }, [authLoading, isAuthenticated, orderId]);
 
   const progressIndex = useMemo(() => {
-    if (!order?.orderStatus) {
-      return 0;
-    }
-
-    const map: Record<string, number> = {
-      PENDING_PAYMENT: 0,
-      CONFIRMED: 1,
-      PROCESSING: 2,
-      SHIPPED: 3,
-      DELIVERED: 4,
-    };
-
-    return map[order.orderStatus] ?? 0;
+    return getProgressIndex(order?.orderStatus);
   }, [order?.orderStatus]);
 
   const timelineSteps = useMemo(() => {
-    const steps = [
-      "Order Placed",
-      "Confirmed",
-      "Processing",
-      "Shipped",
-      "Delivered",
-    ];
-
-    return steps.map((label, index) => ({
+    return ORDER_PROGRESS_STEPS.map((label, index) => ({
       label,
       done: index <= progressIndex,
     }));
@@ -255,6 +319,15 @@ export default function OrderDetailsPage() {
   const statusLabel = order?.orderStatus ? (STATUS_LABELS[order.orderStatus] || order.orderStatus) : "";
   const statusStyle = order?.orderStatus ? STATUS_STYLES[order.orderStatus] : undefined;
   const paymentPending = order?.paymentStatus === "PENDING" || order?.orderStatus === "PENDING_PAYMENT";
+  const canCancel = order?.orderStatus
+    ? ["PENDING_PAYMENT", "CONFIRMED", "PROCESSING", "PACKED"].includes(order.orderStatus)
+    : false;
+  const canRequestReturn = order?.orderStatus
+    ? ["SHIPPED", "OUT_FOR_DELIVERY", "DELIVERED"].includes(order.orderStatus)
+    : false;
+  const canRequestRefund = order?.orderStatus
+    ? ["CANCELLED", "RETURN_APPROVED"].includes(order.orderStatus)
+    : false;
 
   const handleRetryPayment = async () => {
     if (!order) {
@@ -290,6 +363,48 @@ export default function OrderDetailsPage() {
       toast.error(error.response?.data?.message || error.message || "Unable to retry payment");
     } finally {
       setIsRetrying(false);
+    }
+  };
+
+  const handleOrderAction = async (action: "cancel" | "return" | "refund") => {
+    if (!order) {
+      return;
+    }
+
+    const actionLabels = {
+      cancel: "Cancel order",
+      return: "Request return",
+      refund: "Request refund",
+    } as const;
+
+    if (!window.confirm(`Are you sure you want to ${actionLabels[action].toLowerCase()}?`)) {
+      return;
+    }
+
+    const reasonInput = window.prompt("Add a reason (optional):");
+    const reason = reasonInput?.trim();
+    const payload = reason ? { reason } : {};
+
+    setIsUpdatingOrder(true);
+    try {
+      if (action === "cancel") {
+        await orderApi.cancel(order.id, payload);
+      }
+
+      if (action === "return") {
+        await orderApi.requestReturn(order.id, payload);
+      }
+
+      if (action === "refund") {
+        await orderApi.requestRefund(order.id, payload);
+      }
+
+      toast.success(`${actionLabels[action]} submitted`);
+      await loadOrder();
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "Unable to update order"));
+    } finally {
+      setIsUpdatingOrder(false);
     }
   };
 
@@ -376,10 +491,37 @@ export default function OrderDetailsPage() {
           </div>
 
           <div className="flex items-center gap-3 self-start sm:self-auto">
+            {canCancel && (
+              <button
+                onClick={() => handleOrderAction("cancel")}
+                disabled={isUpdatingOrder}
+                className="px-5 py-2.5 bg-white border border-red-200 rounded-full text-xs font-black uppercase tracking-wider text-red-600 hover:bg-red-600 hover:text-white transition-all flex items-center gap-2 shadow-2xs cursor-pointer disabled:opacity-60"
+              >
+                <AlertTriangle size={14} /> Cancel Order
+              </button>
+            )}
+            {canRequestReturn && (
+              <button
+                onClick={() => handleOrderAction("return")}
+                disabled={isUpdatingOrder}
+                className="px-5 py-2.5 bg-white border border-amber-200 rounded-full text-xs font-black uppercase tracking-wider text-amber-700 hover:bg-amber-500 hover:text-black transition-all flex items-center gap-2 shadow-2xs cursor-pointer disabled:opacity-60"
+              >
+                <Package size={14} /> Request Return
+              </button>
+            )}
+            {canRequestRefund && (
+              <button
+                onClick={() => handleOrderAction("refund")}
+                disabled={isUpdatingOrder}
+                className="px-5 py-2.5 bg-white border border-rose-200 rounded-full text-xs font-black uppercase tracking-wider text-rose-600 hover:bg-rose-500 hover:text-white transition-all flex items-center gap-2 shadow-2xs cursor-pointer disabled:opacity-60"
+              >
+                <RotateCcw size={14} /> Request Refund
+              </button>
+            )}
             {paymentPending && (
               <button
                 onClick={handleRetryPayment}
-                disabled={isRetrying}
+                disabled={isRetrying || isUpdatingOrder}
                 className="px-5 py-2.5 bg-black rounded-full text-xs font-black uppercase tracking-wider text-white hover:bg-[#facc15] hover:text-black transition-all flex items-center gap-2 shadow-md cursor-pointer disabled:opacity-60"
               >
                 <RotateCcw size={14} /> {isRetrying ? "Retrying..." : "Retry Payment"}

@@ -21,9 +21,15 @@ type OrderStatusValue =
   | "PENDING_PAYMENT"
   | "CONFIRMED"
   | "PROCESSING"
+  | "PACKED"
   | "SHIPPED"
+  | "OUT_FOR_DELIVERY"
   | "DELIVERED"
   | "CANCELLED"
+  | "RETURN_REQUESTED"
+  | "RETURN_APPROVED"
+  | "RETURN_REJECTED"
+  | "REFUND_PENDING"
   | "REFUNDED"
   | "FAILED";
 
@@ -71,8 +77,14 @@ const ORDER_STATUS_OPTIONS: { value: OrderStatusValue; label: string }[] = [
   { value: "PENDING_PAYMENT", label: "Pending Payment" },
   { value: "CONFIRMED", label: "Confirmed" },
   { value: "PROCESSING", label: "Processing" },
+  { value: "PACKED", label: "Packed" },
   { value: "SHIPPED", label: "Shipped" },
+  { value: "OUT_FOR_DELIVERY", label: "Out for Delivery" },
   { value: "DELIVERED", label: "Delivered" },
+  { value: "RETURN_REQUESTED", label: "Return Requested" },
+  { value: "RETURN_APPROVED", label: "Return Approved" },
+  { value: "RETURN_REJECTED", label: "Return Rejected" },
+  { value: "REFUND_PENDING", label: "Refund Pending" },
   { value: "CANCELLED", label: "Cancelled" },
   { value: "REFUNDED", label: "Refunded" },
   { value: "FAILED", label: "Failed" },
@@ -82,9 +94,15 @@ const ORDER_STATUS_LABELS: Record<OrderStatusValue, string> = {
   PENDING_PAYMENT: "Pending Payment",
   CONFIRMED: "Confirmed",
   PROCESSING: "Processing",
+  PACKED: "Packed",
   SHIPPED: "Shipped",
+  OUT_FOR_DELIVERY: "Out for Delivery",
   DELIVERED: "Delivered",
   CANCELLED: "Cancelled",
+  RETURN_REQUESTED: "Return Requested",
+  RETURN_APPROVED: "Return Approved",
+  RETURN_REJECTED: "Return Rejected",
+  REFUND_PENDING: "Refund Pending",
   REFUNDED: "Refunded",
   FAILED: "Failed",
 };
@@ -330,6 +348,13 @@ export default function AdminOrders() {
             {formatOrderStatus(status)}
           </span>
         );
+      case "PACKED":
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-tighter bg-indigo-100 text-indigo-700 border border-indigo-200">
+            <ShoppingBag size={12} />
+            {formatOrderStatus(status)}
+          </span>
+        );
       case "PENDING_PAYMENT":
         return (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-tighter bg-amber-100 text-amber-700 border border-amber-200">
@@ -337,10 +362,45 @@ export default function AdminOrders() {
             {formatOrderStatus(status)}
           </span>
         );
+      case "OUT_FOR_DELIVERY":
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-tighter bg-sky-100 text-sky-700 border border-sky-200">
+            <Truck size={12} />
+            {formatOrderStatus(status)}
+          </span>
+        );
       case "SHIPPED":
         return (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-tighter bg-purple-100 text-purple-700 border border-purple-200">
             <Truck size={12} />
+            {formatOrderStatus(status)}
+          </span>
+        );
+      case "RETURN_REQUESTED":
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-tighter bg-amber-100 text-amber-700 border border-amber-200">
+            <RotateCcw size={12} />
+            {formatOrderStatus(status)}
+          </span>
+        );
+      case "RETURN_APPROVED":
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-tighter bg-emerald-100 text-emerald-700 border border-emerald-200">
+            <CheckCircle size={12} />
+            {formatOrderStatus(status)}
+          </span>
+        );
+      case "RETURN_REJECTED":
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-tighter bg-rose-100 text-rose-700 border border-rose-200">
+            <XCircle size={12} />
+            {formatOrderStatus(status)}
+          </span>
+        );
+      case "REFUND_PENDING":
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-tighter bg-amber-100 text-amber-700 border border-amber-200">
+            <Clock size={12} />
             {formatOrderStatus(status)}
           </span>
         );

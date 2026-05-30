@@ -278,7 +278,10 @@ export const addressApi = {
     country: string;
     postalCode: string;
     landmark?: string | null;
+    label?: string | null;
     type?: "shipping" | "billing" | "both";
+    isDefaultShipping?: boolean;
+    isDefaultBilling?: boolean;
   }) => api.post("/v1/addresses", data),
   update: (id: number, data: {
     fullName?: string;
@@ -290,7 +293,10 @@ export const addressApi = {
     country?: string;
     postalCode?: string;
     landmark?: string | null;
+    label?: string | null;
     type?: "shipping" | "billing" | "both";
+    isDefaultShipping?: boolean;
+    isDefaultBilling?: boolean;
   }) => api.patch(`/v1/addresses/${id}`, data),
   remove: (id: number) => api.delete(`/v1/addresses/${id}`),
 };
@@ -310,12 +316,20 @@ export const orderApi = {
   getById: (id: number | string) => api.get(`/v1/orders/${id}`),
   listItems: (id: number | string) => api.get(`/v1/orders/${id}/items`),
   retryPayment: (id: number | string) => api.post(`/v1/orders/${id}/retry-payment`),
+  cancel: (id: number | string, data?: { reason?: string | null; notes?: string | null }) =>
+    api.post(`/v1/orders/${id}/cancel`, data ?? {}),
+  requestReturn: (id: number | string, data?: { reason?: string | null; notes?: string | null }) =>
+    api.post(`/v1/orders/${id}/return-request`, data ?? {}),
+  requestRefund: (id: number | string, data?: { reason?: string | null; notes?: string | null }) =>
+    api.post(`/v1/orders/${id}/refund`, data ?? {}),
+  getTimeline: (id: number | string) => api.get(`/v1/orders/${id}/timeline`),
 };
 
 export const adminOrderApi = {
   list: (params?: Record<string, string | number | boolean>) => api.get("/v1/admin/orders", { params }),
   updateStatus: (id: number | string, status: string) =>
     api.patch(`/v1/admin/orders/${id}/status`, { status }),
+  getTimeline: (id: number | string) => api.get(`/v1/admin/orders/${id}/timeline`),
 };
 
 export const adminCouponApi = {

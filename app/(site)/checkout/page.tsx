@@ -29,7 +29,10 @@ type Address = {
   country: string;
   postalCode: string;
   landmark?: string | null;
+  label?: string | null;
   type?: "shipping" | "billing" | "both";
+  isDefaultShipping?: boolean;
+  isDefaultBilling?: boolean;
 };
 
 type AddressFormState = {
@@ -42,7 +45,10 @@ type AddressFormState = {
   country: string;
   postalCode: string;
   landmark: string;
+  label: string;
   type: "shipping" | "billing" | "both";
+  isDefaultShipping: boolean;
+  isDefaultBilling: boolean;
 };
 
 type CouponView = {
@@ -65,6 +71,11 @@ type PricingSummary = {
 };
 
 const buildAddressLabel = (address: Address) => {
+  const explicitLabel = address.label?.trim();
+  if (explicitLabel) {
+    return explicitLabel;
+  }
+
   if (address.type === "billing") {
     return "Billing";
   }
@@ -137,7 +148,10 @@ const CheckoutPage = () => {
     country: "India",
     postalCode: "",
     landmark: "",
+    label: "",
     type: "both",
+    isDefaultShipping: false,
+    isDefaultBilling: false,
   });
 
   useEffect(() => {
@@ -160,9 +174,14 @@ const CheckoutPage = () => {
       setAddresses(items as Address[]);
 
       if (items.length > 0) {
-        const firstId = Number(items[0].id);
-        setSelectedShippingId(firstId);
-        setSelectedBillingId(firstId);
+        const defaultShipping = items.find((address) => address.isDefaultShipping) || items[0];
+        const defaultBilling = items.find((address) => address.isDefaultBilling) || defaultShipping || items[0];
+        const shippingId = Number(defaultShipping.id);
+        const billingId = Number(defaultBilling.id);
+
+        setSelectedShippingId(shippingId);
+        setSelectedBillingId(billingId);
+        setUseShippingForBilling(shippingId === billingId);
       }
     } catch (error: any) {
       setAddressError(error.response?.data?.message || error.message || "Unable to load addresses");
@@ -212,7 +231,10 @@ const CheckoutPage = () => {
         country: addressForm.country.trim(),
         postalCode: addressForm.postalCode.trim(),
         landmark: addressForm.landmark.trim() || null,
+        label: addressForm.label.trim() || null,
         type: addressForm.type,
+        isDefaultShipping: addressForm.isDefaultShipping,
+        isDefaultBilling: addressForm.isDefaultBilling,
       });
 
       const newAddress = response.data?.data as Address | undefined;
@@ -231,6 +253,9 @@ const CheckoutPage = () => {
         state: "",
         postalCode: "",
         landmark: "",
+        label: "",
+        isDefaultShipping: false,
+        isDefaultBilling: false,
       }));
       toast.success("Address saved successfully");
     } catch (error: any) {
@@ -469,9 +494,21 @@ const CheckoutPage = () => {
                         }`}
                       >
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">
-                            {buildAddressLabel(address)}
-                          </span>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">
+                              {buildAddressLabel(address)}
+                            </span>
+                            {address.isDefaultShipping && (
+                              <span className="text-[9px] font-black uppercase tracking-widest text-yellow-700 bg-yellow-50 border border-yellow-200 px-2 py-0.5 rounded-full">
+                                Default Shipping
+                              </span>
+                            )}
+                            {address.isDefaultBilling && (
+                              <span className="text-[9px] font-black uppercase tracking-widest text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
+                                Default Billing
+                              </span>
+                            )}
+                          </div>
                           {isSelected && <CheckCircle2 size={16} className="text-yellow-600" />}
                         </div>
                         <p className="font-black text-gray-900 mt-2">{address.fullName}</p>
@@ -533,6 +570,19 @@ const CheckoutPage = () => {
                       onChange={(event) =>
                         setAddressForm((prev) => ({ ...prev, addressLine2: event.target.value }))
                       }
+                      className="w-full bg-white border border-gray-200 rounded-2xl px-4 py-3 text-sm font-semibold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-black uppercase text-gray-600 mb-2">Label (optional)</label>
+                    <input
+                      type="text"
+                      value={addressForm.label}
+                      onChange={(event) =>
+                        setAddressForm((prev) => ({ ...prev, label: event.target.value }))
+                      }
+                      placeholder="Home, Office, Warehouse"
                       className="w-full bg-white border border-gray-200 rounded-2xl px-4 py-3 text-sm font-semibold"
                     />
                   </div>
@@ -622,6 +672,31 @@ const CheckoutPage = () => {
                     </div>
                   </div>
 
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <label className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-gray-600">
+                      <input
+                        type="checkbox"
+                        checked={addressForm.isDefaultShipping}
+                        onChange={(event) =>
+                          setAddressForm((prev) => ({ ...prev, isDefaultShipping: event.target.checked }))
+                        }
+                        className="accent-black"
+                      />
+                      Default Shipping
+                    </label>
+                    <label className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-gray-600">
+                      <input
+                        type="checkbox"
+                        checked={addressForm.isDefaultBilling}
+                        onChange={(event) =>
+                          setAddressForm((prev) => ({ ...prev, isDefaultBilling: event.target.checked }))
+                        }
+                        className="accent-black"
+                      />
+                      Default Billing
+                    </label>
+                  </div>
+
                   <div className="flex justify-end gap-3">
                     <button
                       type="button"
@@ -693,9 +768,21 @@ const CheckoutPage = () => {
                         }`}
                       >
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">
-                            {buildAddressLabel(address)}
-                          </span>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">
+                              {buildAddressLabel(address)}
+                            </span>
+                            {address.isDefaultShipping && (
+                              <span className="text-[9px] font-black uppercase tracking-widest text-yellow-700 bg-yellow-50 border border-yellow-200 px-2 py-0.5 rounded-full">
+                                Default Shipping
+                              </span>
+                            )}
+                            {address.isDefaultBilling && (
+                              <span className="text-[9px] font-black uppercase tracking-widest text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
+                                Default Billing
+                              </span>
+                            )}
+                          </div>
                           {isSelected && <CheckCircle2 size={16} className="text-yellow-600" />}
                         </div>
                         <p className="font-black text-gray-900 mt-2">{address.fullName}</p>
