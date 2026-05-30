@@ -61,6 +61,7 @@ export type ApiProduct = {
   thumbnail?: string | null;
   minPrice?: string | number;
   totalStock?: string | number;
+  defaultVariantId?: number | string | null;
   categories?: ApiCategory[];
   variants?: ApiVariant[];
   media?: ApiMedia[];
@@ -341,6 +342,11 @@ const resolveComparePrice = (product: ApiProduct) => {
 };
 
 const resolveDefaultVariantId = (product: ApiProduct) => {
+  const explicitDefault = toNumber(product.defaultVariantId, NaN);
+  if (Number.isFinite(explicitDefault)) {
+    return explicitDefault;
+  }
+
   const variants = product.variants || [];
 
   const inStockVariant = variants.find((variant) => {
@@ -355,6 +361,22 @@ const resolveDefaultVariantId = (product: ApiProduct) => {
   const firstVariant = variants.find((variant) => Number.isFinite(toNumber(variant.id, NaN)));
 
   return firstVariant?.id ? Number(firstVariant.id) : null;
+};
+
+const resolveDetailDefaultVariantId = (baseDefaultVariantId: number | null, variants: UiVariant[]) => {
+  if (baseDefaultVariantId !== null) {
+    const matched = variants.find((variant) => variant.id === baseDefaultVariantId);
+    if (matched) {
+      return matched.id;
+    }
+  }
+
+  const inStockVariant = variants.find((variant) => variant.stock > 0 && variant.status === "active");
+  if (inStockVariant) {
+    return inStockVariant.id;
+  }
+
+  return variants[0]?.id ?? null;
 };
 
 const resolveBenefits = (metaMap: Record<string, unknown>) => {
@@ -499,6 +521,7 @@ export const mapApiProductToUiProductDetail = (product: ApiProduct): UiProductDe
   const mappedVariants = (product.variants || [])
     .map(mapVariantToUiVariant)
     .filter(Boolean) as UiVariant[];
+  const resolvedDefaultVariantId = resolveDetailDefaultVariantId(base.defaultVariantId, mappedVariants);
 
   return {
     ...base,
@@ -506,10 +529,6 @@ export const mapApiProductToUiProductDetail = (product: ApiProduct): UiProductDe
     variantCount: mappedVariants.length,
     gallery: resolveGallery(product),
     hasVariants: mappedVariants.length > 0 || base.hasVariants,
-    defaultVariantId:
-      base.defaultVariantId ??
-      mappedVariants.find((variant) => variant.stock > 0)?.id ??
-      mappedVariants[0]?.id ??
-      null,
+    defaultVariantId: resolvedDefaultVariantId,
   };
 };

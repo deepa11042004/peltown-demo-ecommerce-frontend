@@ -25,13 +25,13 @@ export default function AdminLoginPage() {
   const [isLoading, setIsLoading] = useState(false);
 
   const router = useRouter();
-  const { loginAdmin, user, loading } = useAuth();
+  const { loginAdmin, adminUser, isAdminAuthenticated, loading } = useAuth();
 
   useEffect(() => {
-    if (!loading && user && isAdminRole(user.role)) {
+    if (!loading && isAdminAuthenticated && isAdminRole(adminUser?.role)) {
       router.replace("/admin");
     }
-  }, [loading, router, user]);
+  }, [adminUser?.role, isAdminAuthenticated, loading, router]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();

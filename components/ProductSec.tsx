@@ -191,7 +191,12 @@ const ProductSec = () => {
                       (pageIndex + 1) * itemsPerPage,
                     )
                     .map((product) => {
-                      const selectionId = buildSelectionKey(Number(product.id), product.defaultVariantId);
+                      const resolvedVariantId = product.hasVariants ? product.defaultVariantId : null;
+                      const selectionId = buildSelectionKey(Number(product.id), resolvedVariantId ?? null);
+                      const productLink = resolvedVariantId
+                        ? `/product/${product.id}?variant=${resolvedVariantId}`
+                        : `/product/${product.id}`;
+                      const isVariantReady = !product.hasVariants || Boolean(resolvedVariantId);
 
                       return (
                     <motion.div
@@ -211,26 +216,31 @@ const ProductSec = () => {
                         {/* Secondary Actions (Visible on Hover) */}
                         <div className="absolute right-4 top-4 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                           <Link
-                            href={`/product/${product.id}`}
+                            href={productLink}
                             className="p-2 bg-white text-gray-800 rounded-full shadow-md hover:bg-[#facc15] transition-colors flex items-center justify-center cursor-pointer"
                           >
                             <Eye size={16} />
                           </Link>
                           <button
-                            onClick={() =>
+                            onClick={() => {
+                              if (!isVariantReady) {
+                                return;
+                              }
+
                               toggleWishlist({
                                 id: selectionId,
                                 name: product.name,
                                 price: product.price,
                                 image: product.image,
-                                variantId: product.defaultVariantId,
-                              })
-                            }
+                                variantId: resolvedVariantId,
+                              });
+                            }}
+                            disabled={!isVariantReady}
                             className={`p-2 rounded-full shadow-md transition-colors cursor-pointer ${
                               isInWishlist(selectionId)
                                 ? "bg-red-500 text-white hover:bg-red-600"
                                 : "bg-white text-gray-800 hover:bg-[#facc15]"
-                            }`}
+                            } disabled:opacity-60 disabled:cursor-not-allowed`}
                             title={
                               isInWishlist(selectionId)
                                 ? "Remove from Wishlist"
@@ -246,7 +256,7 @@ const ProductSec = () => {
                           </button>
                         </div>
 
-                        <Link href={`/product/${product.id}`} className="relative w-full h-full block">
+                        <Link href={productLink} className="relative w-full h-full block">
                           <Image
                             src={product.image}
                             alt={product.name}
@@ -281,7 +291,10 @@ const ProductSec = () => {
                         </span>
                       </div>
 
-                      <Link href={`/product/${product.id}`} className="text-base sm:text-lg font-black text-gray-800 hover:text-yellow-600 transition-colors mt-2 mb-3 h-10 sm:h-12 line-clamp-2 px-2 leading-tight uppercase tracking-tight block">
+                      <Link
+                        href={productLink}
+                        className="text-base sm:text-lg font-black text-gray-800 hover:text-yellow-600 transition-colors mt-2 mb-3 h-10 sm:h-12 line-clamp-2 px-2 leading-tight uppercase tracking-tight block"
+                      >
                         {product.name}
                       </Link>
 
@@ -308,16 +321,21 @@ const ProductSec = () => {
 
                       {/* Action Button (Pill Style) */}
                       <button
-                        onClick={() =>
+                        onClick={() => {
+                          if (!isVariantReady) {
+                            return;
+                          }
+
                           addToCart({
                             id: selectionId,
                             name: product.name,
                             price: product.price,
                             image: product.image,
-                            variantId: product.defaultVariantId,
-                          })
-                        }
-                        className="w-full py-3 sm:py-4 border-2 border-gray-900 rounded-full text-[10px] sm:text-[11px] font-black uppercase tracking-[0.2em] hover:bg-gray-900 hover:text-white transition-all duration-300 shadow-sm hover:shadow-lg"
+                            variantId: resolvedVariantId,
+                          });
+                        }}
+                        disabled={!isVariantReady}
+                        className="w-full py-3 sm:py-4 border-2 border-gray-900 rounded-full text-[10px] sm:text-[11px] font-black uppercase tracking-[0.2em] hover:bg-gray-900 hover:text-white transition-all duration-300 shadow-sm hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         Add to Cart
                       </button>

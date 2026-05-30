@@ -5,6 +5,20 @@ const API_BASE_URL = "/api";
 const GUEST_ID_STORAGE_KEY = "guestId";
 const GUEST_ID_PATTERN = /^guest_[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const NON_CUSTOMER_ROLES = new Set(["admin", "super_admin", "developer"]);
+const CUSTOMER_ACCESS_TOKEN_KEY = "accessToken";
+const CUSTOMER_REFRESH_TOKEN_KEY = "refreshToken";
+const CUSTOMER_AUTH_USER_KEY = "authUser";
+const ADMIN_ACCESS_TOKEN_KEY = "adminAccessToken";
+const ADMIN_REFRESH_TOKEN_KEY = "adminRefreshToken";
+const ADMIN_AUTH_USER_KEY = "adminAuthUser";
+
+const isAdminRoute = () => {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  return window.location.pathname.startsWith("/admin");
+};
 
 const decodeTokenPayload = (token: string): Record<string, unknown> | null => {
   const parts = token.split(".");
@@ -26,12 +40,12 @@ const decodeTokenPayload = (token: string): Record<string, unknown> | null => {
   }
 };
 
-const readRoleFromToken = () => {
+const readRoleFromToken = (tokenKey: string) => {
   if (typeof window === "undefined") {
     return null;
   }
 
-  const token = localStorage.getItem("accessToken");
+  const token = localStorage.getItem(tokenKey);
   if (!token || token === "undefined" || token === "null") {
     return null;
   }
@@ -44,14 +58,14 @@ const readRoleFromToken = () => {
   return payload.role.toLowerCase();
 };
 
-const readStoredRole = () => {
+const readStoredRole = (authUserKey: string, tokenKey: string) => {
   if (typeof window === "undefined") {
     return null;
   }
 
-  const raw = localStorage.getItem("authUser");
+  const raw = localStorage.getItem(authUserKey);
   if (!raw) {
-    return null;
+    return readRoleFromToken(tokenKey);
   }
 
   try {
@@ -60,9 +74,9 @@ const readStoredRole = () => {
       return parsed.role.toLowerCase();
     }
 
-    return readRoleFromToken();
+    return readRoleFromToken(tokenKey);
   } catch {
-    return readRoleFromToken();
+    return readRoleFromToken(tokenKey);
   }
 };
 
@@ -129,7 +143,10 @@ api.interceptors.request.use(
       config.headers["x-guest-id"] = guestId;
     }
 
-    const role = readStoredRole();
+    const adminRoute = isAdminRoute();
+    const role = adminRoute
+      ? readStoredRole(ADMIN_AUTH_USER_KEY, ADMIN_ACCESS_TOKEN_KEY)
+      : readStoredRole(CUSTOMER_AUTH_USER_KEY, CUSTOMER_ACCESS_TOKEN_KEY);
     const shouldForceGuestMode =
       isGuestShoppingRoute(config.url)
       && !isShopperMergeRoute(config.url)
@@ -147,10 +164,9 @@ api.interceptors.request.use(
       delete config.headers["x-shopping-guest-mode"];
     }
 
-    const token =
-      typeof window !== "undefined"
-        ? localStorage.getItem("accessToken")
-        : null;
+    const token = typeof window !== "undefined"
+      ? localStorage.getItem(adminRoute ? ADMIN_ACCESS_TOKEN_KEY : CUSTOMER_ACCESS_TOKEN_KEY)
+      : null;
 
     if (
       !shouldForceGuestMode
@@ -179,25 +195,32 @@ api.interceptors.response.use(
       originalRequest._retry = true;
 
       try {
-        const refreshToken = localStorage.getItem("refreshToken");
-        if (refreshToken && refreshToken !== "undefined" && refreshToken !== "null") {
+        const refreshTokenKey = isAdminRoute() ? ADMIN_REFRESH_TOKEN_KEY : CUSTOMER_REFRESH_TOKEN_KEY;
+        const accessTokenKey = isAdminRoute() ? ADMIN_ACCESS_TOKEN_KEY : CUSTOMER_ACCESS_TOKEN_KEY;
+        const sessionRefreshToken = localStorage.getItem(refreshTokenKey);
+        if (sessionRefreshToken && sessionRefreshToken !== "undefined" && sessionRefreshToken !== "null") {
           const res = await axios.post(`${API_BASE_URL}/v1/auth/refresh-token`, {
-            refreshToken,
+            refreshToken: sessionRefreshToken,
           });
           const accessToken = res.data?.data?.accessToken || res.data?.accessToken;
 
           if (accessToken) {
-            localStorage.setItem("accessToken", accessToken);
+            localStorage.setItem(accessTokenKey, accessToken);
             originalRequest.headers.Authorization = `Bearer ${accessToken}`;
             return api(originalRequest);
           }
         }
         throw new Error("Refresh token missing or invalid");
       } catch {
-        // Refresh token failed, logout user
-        localStorage.removeItem("accessToken");
-        localStorage.removeItem("refreshToken");
-        localStorage.removeItem("authUser");
+        // Refresh token failed, logout the active session
+        const sessionKeys = isAdminRoute()
+          ? [ADMIN_ACCESS_TOKEN_KEY, ADMIN_REFRESH_TOKEN_KEY, ADMIN_AUTH_USER_KEY]
+          : [CUSTOMER_ACCESS_TOKEN_KEY, CUSTOMER_REFRESH_TOKEN_KEY, CUSTOMER_AUTH_USER_KEY];
+
+        for (const key of sessionKeys) {
+          localStorage.removeItem(key);
+        }
+
         if (typeof window !== "undefined") {
           const isAdminRoute = window.location.pathname.startsWith("/admin");
           window.location.href = isAdminRoute ? "/admin/login" : "/login";

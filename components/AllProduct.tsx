@@ -134,7 +134,12 @@ const AllProduct: React.FC<AllProductProps> = ({ showFilter = false }) => {
 
           <AnimatePresence>
             {filteredProducts.map((product) => {
-              const selectionId = buildSelectionKey(Number(product.id), product.defaultVariantId);
+              const resolvedVariantId = product.hasVariants ? product.defaultVariantId : null;
+              const selectionId = buildSelectionKey(Number(product.id), resolvedVariantId ?? null);
+              const productLink = resolvedVariantId
+                ? `/product/${product.id}?variant=${resolvedVariantId}`
+                : `/product/${product.id}`;
+              const isVariantReady = !product.hasVariants || Boolean(resolvedVariantId);
 
               return (
                 <motion.div
@@ -158,26 +163,31 @@ const AllProduct: React.FC<AllProductProps> = ({ showFilter = false }) => {
                   {/* Secondary Actions (Visible on Hover) */}
                   <div className="absolute right-4 top-4 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                     <Link
-                      href={`/product/${product.id}`}
+                      href={productLink}
                       className="p-2 bg-white text-gray-800 rounded-full shadow-md hover:bg-[#facc15] transition-colors flex items-center justify-center cursor-pointer"
                     >
                       <Eye size={16} />
                     </Link>
                     <button
-                      onClick={() =>
+                      onClick={() => {
+                        if (!isVariantReady) {
+                          return;
+                        }
+
                         toggleWishlist({
                           id: selectionId,
                           name: product.name,
                           price: product.price,
                           image: product.image,
-                          variantId: product.defaultVariantId,
-                        })
-                      }
+                          variantId: resolvedVariantId,
+                        });
+                      }}
+                      disabled={!isVariantReady}
                       className={`p-2 rounded-full shadow-md transition-colors cursor-pointer ${
                         isInWishlist(selectionId)
                           ? "bg-red-500 text-white hover:bg-red-600"
                           : "bg-white text-gray-800 hover:bg-[#facc15]"
-                      }`}
+                      } disabled:opacity-60 disabled:cursor-not-allowed`}
                       title={
                         isInWishlist(selectionId)
                           ? "Remove from Wishlist"
@@ -194,7 +204,7 @@ const AllProduct: React.FC<AllProductProps> = ({ showFilter = false }) => {
                   </div>
 
                   <Link
-                    href={`/product/${product.id}`}
+                    href={productLink}
                     className="relative w-full h-full block"
                   >
                     <Image
@@ -231,7 +241,7 @@ const AllProduct: React.FC<AllProductProps> = ({ showFilter = false }) => {
 
                 {/* Title */}
                 <Link
-                  href={`/product/${product.id}`}
+                  href={productLink}
                   className="text-sm font-bold text-gray-800 hover:text-yellow-600 transition-colors mb-3 h-10 line-clamp-2 px-2 leading-tight block uppercase tracking-tight"
                 >
                   {product.name}
@@ -260,16 +270,21 @@ const AllProduct: React.FC<AllProductProps> = ({ showFilter = false }) => {
 
                 {/* Action Button */}
                 <button
-                  onClick={() =>
+                  onClick={() => {
+                    if (!isVariantReady) {
+                      return;
+                    }
+
                     addToCart({
                       id: selectionId,
                       name: product.name,
                       price: product.price,
                       image: product.image,
-                      variantId: product.defaultVariantId,
-                    })
-                  }
-                  className="w-full py-3.5 border-2 border-gray-900 rounded-full text-[11px] font-black uppercase tracking-widest hover:bg-gray-900 hover:text-white transition-all cursor-pointer shadow-xs hover:shadow-md"
+                      variantId: resolvedVariantId,
+                    });
+                  }}
+                  disabled={!isVariantReady}
+                  className="w-full py-3.5 border-2 border-gray-900 rounded-full text-[11px] font-black uppercase tracking-widest hover:bg-gray-900 hover:text-white transition-all cursor-pointer shadow-xs hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   Add to Cart
                 </button>

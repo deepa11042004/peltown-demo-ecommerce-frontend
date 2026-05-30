@@ -15,16 +15,25 @@ interface User {
 
 interface AuthContextType {
   user: User | null;
+  adminUser: User | null;
   loading: boolean;
   isAuthenticated: boolean;
   isAdmin: boolean;
+  isAdminAuthenticated: boolean;
   login: (data: any) => Promise<void>;
   loginAdmin: (data: any) => Promise<void>;
   register: (data: any) => Promise<void>;
   logout: () => void;
+  logoutAdmin: () => void;
 }
 
 const ADMIN_ROLES = new Set(["admin", "super_admin"]);
+const CUSTOMER_ACCESS_TOKEN_KEY = "accessToken";
+const CUSTOMER_REFRESH_TOKEN_KEY = "refreshToken";
+const CUSTOMER_AUTH_USER_KEY = "authUser";
+const ADMIN_ACCESS_TOKEN_KEY = "adminAccessToken";
+const ADMIN_REFRESH_TOKEN_KEY = "adminRefreshToken";
+const ADMIN_AUTH_USER_KEY = "adminAuthUser";
 
 const isAdminRole = (role?: string | null) => {
   if (!role) {
@@ -45,30 +54,42 @@ const normalizeUser = (userData: any): User => {
   };
 };
 
-const clearSession = () => {
-  localStorage.removeItem("accessToken");
-  localStorage.removeItem("refreshToken");
-  localStorage.removeItem("authUser");
+const clearSession = (sessionType: "customer" | "admin") => {
+  if (sessionType === "admin") {
+    localStorage.removeItem(ADMIN_ACCESS_TOKEN_KEY);
+    localStorage.removeItem(ADMIN_REFRESH_TOKEN_KEY);
+    localStorage.removeItem(ADMIN_AUTH_USER_KEY);
+    return;
+  }
+
+  localStorage.removeItem(CUSTOMER_ACCESS_TOKEN_KEY);
+  localStorage.removeItem(CUSTOMER_REFRESH_TOKEN_KEY);
+  localStorage.removeItem(CUSTOMER_AUTH_USER_KEY);
 };
 
 const saveSession = (
   accessToken: string,
   refreshToken: string | undefined,
   userData: User,
+  sessionType: "customer" | "admin",
 ) => {
-  localStorage.setItem("accessToken", accessToken);
+  const accessTokenKey = sessionType === "admin" ? ADMIN_ACCESS_TOKEN_KEY : CUSTOMER_ACCESS_TOKEN_KEY;
+  const refreshTokenKey = sessionType === "admin" ? ADMIN_REFRESH_TOKEN_KEY : CUSTOMER_REFRESH_TOKEN_KEY;
+  const authUserKey = sessionType === "admin" ? ADMIN_AUTH_USER_KEY : CUSTOMER_AUTH_USER_KEY;
+
+  localStorage.setItem(accessTokenKey, accessToken);
 
   if (refreshToken) {
-    localStorage.setItem("refreshToken", refreshToken);
+    localStorage.setItem(refreshTokenKey, refreshToken);
   } else {
-    localStorage.removeItem("refreshToken");
+    localStorage.removeItem(refreshTokenKey);
   }
 
-  localStorage.setItem("authUser", JSON.stringify(userData));
+  localStorage.setItem(authUserKey, JSON.stringify(userData));
 };
 
-const readStoredUser = (): User | null => {
-  const rawUser = localStorage.getItem("authUser");
+const readStoredUser = (storageKey: string): User | null => {
+  const rawUser = localStorage.getItem(storageKey);
   if (!rawUser) {
     return null;
   }
@@ -76,7 +97,7 @@ const readStoredUser = (): User | null => {
   try {
     return normalizeUser(JSON.parse(rawUser));
   } catch {
-    localStorage.removeItem("authUser");
+    localStorage.removeItem(storageKey);
     return null;
   }
 };
@@ -127,36 +148,56 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [adminUser, setAdminUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
     const initAuth = () => {
-      const token = localStorage.getItem('accessToken');
-      if (token && token !== "undefined" && token !== "null") {
-        const tokenUser = readUserFromToken(token);
+      const customerToken = localStorage.getItem(CUSTOMER_ACCESS_TOKEN_KEY);
+      if (customerToken && customerToken !== "undefined" && customerToken !== "null") {
+        const tokenUser = readUserFromToken(customerToken);
 
         if (!tokenUser) {
-          clearSession();
+          clearSession("customer");
           setUser(null);
-          setLoading(false);
-          return;
-        }
-
-        const storedUser = readStoredUser();
-        if (storedUser) {
-          setUser({
+        } else {
+          const storedUser = readStoredUser(CUSTOMER_AUTH_USER_KEY);
+          const mergedUser = storedUser ? {
             ...tokenUser,
             ...storedUser,
             role: storedUser.role ?? tokenUser.role ?? null,
-          });
-        } else {
-          setUser(tokenUser);
-          localStorage.setItem("authUser", JSON.stringify(tokenUser));
+          } : tokenUser;
+
+          setUser(mergedUser);
+          localStorage.setItem(CUSTOMER_AUTH_USER_KEY, JSON.stringify(mergedUser));
         }
       } else {
-        clearSession();
+        clearSession("customer");
         setUser(null);
+      }
+
+      const adminToken = localStorage.getItem(ADMIN_ACCESS_TOKEN_KEY);
+      if (adminToken && adminToken !== "undefined" && adminToken !== "null") {
+        const tokenUser = readUserFromToken(adminToken);
+
+        if (!tokenUser || !isAdminRole(tokenUser.role)) {
+          clearSession("admin");
+          setAdminUser(null);
+        } else {
+          const storedUser = readStoredUser(ADMIN_AUTH_USER_KEY);
+          const mergedUser = storedUser ? {
+            ...tokenUser,
+            ...storedUser,
+            role: storedUser.role ?? tokenUser.role ?? null,
+          } : tokenUser;
+
+          setAdminUser(mergedUser);
+          localStorage.setItem(ADMIN_AUTH_USER_KEY, JSON.stringify(mergedUser));
+        }
+      } else {
+        clearSession("admin");
+        setAdminUser(null);
       }
 
       setLoading(false);
@@ -169,6 +210,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     requestPromise: Promise<any>,
     redirectPath: string,
     requireAdminRole: boolean,
+    sessionType: "customer" | "admin",
   ) => {
     const response = await requestPromise;
     const payload = response.data?.data || response.data;
@@ -186,14 +228,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error("This account cannot access admin panel");
     }
 
-    saveSession(accessToken, refreshToken, normalizedUser);
-    setUser(normalizedUser);
+    saveSession(accessToken, refreshToken, normalizedUser, sessionType);
+    if (sessionType === "admin") {
+      setAdminUser(normalizedUser);
+      setUser(null);
+    } else {
+      setUser(normalizedUser);
+      setAdminUser(null);
+    }
     router.push(redirectPath);
   };
 
   const login = async (data: any) => {
     try {
-      await completeLogin(authApi.login(data), "/", false);
+      await completeLogin(authApi.login(data), "/", false, "customer");
     } catch (error: any) {
       throw error.response?.data?.message || error.message || "Login failed";
     }
@@ -201,7 +249,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loginAdmin = async (data: any) => {
     try {
-      await completeLogin(authApi.loginAdmin(data), "/admin", true);
+      await completeLogin(authApi.loginAdmin(data), "/admin", true, "admin");
     } catch (error: any) {
       throw (
         error.response?.data?.message ||
@@ -221,22 +269,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = () => {
-    clearSession();
+    clearSession("customer");
     setUser(null);
     router.push('/login');
+  };
+
+  const logoutAdmin = () => {
+    clearSession("admin");
+    setAdminUser(null);
+    router.push('/admin/login');
   };
 
   return (
     <AuthContext.Provider
       value={{
         user,
+        adminUser,
         loading,
         isAuthenticated: !!user,
-        isAdmin: isAdminRole(user?.role),
+        isAdmin: isAdminRole(user?.role || adminUser?.role),
+        isAdminAuthenticated: !!adminUser,
         login,
         loginAdmin,
         register,
         logout,
+        logoutAdmin,
       }}
     >
       {children}

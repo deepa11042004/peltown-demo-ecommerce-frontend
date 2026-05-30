@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -30,6 +30,7 @@ import {
 
 export default function ProductDetailPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const idParam = params?.id;
   const productId = idParam ? Number(idParam) : 1;
   const { addToCart } = useCart();
@@ -42,6 +43,45 @@ export default function ProductDetailPage() {
   const [activeImage, setActiveImage] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
+  const preferredVariantId = useMemo(() => {
+    const rawVariantId = searchParams.get("variant");
+    if (!rawVariantId) {
+      return null;
+    }
+
+    const parsed = Number(rawVariantId);
+    return Number.isFinite(parsed) ? parsed : null;
+  }, [searchParams]);
+
+  const resolveInitialVariantId = (detail: UiProductDetail, requestedId: number | null) => {
+    const variants = detail.variants;
+    if (!variants.length) {
+      return null;
+    }
+
+    if (requestedId !== null) {
+      const requestedVariant = variants.find((variant) => variant.id === requestedId);
+      if (requestedVariant) {
+        return requestedVariant.id;
+      }
+    }
+
+    if (detail.defaultVariantId !== null) {
+      const defaultVariant = variants.find((variant) => variant.id === detail.defaultVariantId);
+      if (defaultVariant) {
+        return defaultVariant.id;
+      }
+    }
+
+    const inStockVariant = variants.find(
+      (variant) => variant.stock > 0 && variant.status === "active",
+    );
+    if (inStockVariant) {
+      return inStockVariant.id;
+    }
+
+    return variants[0]?.id ?? null;
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -75,8 +115,6 @@ export default function ProductDetailPage() {
         }
 
         setProduct(mappedProduct);
-        setSelectedVariantId(mappedProduct.defaultVariantId);
-        setActiveImage(0);
         setRecommendedProducts(mappedRecommendations);
       } catch {
         if (!mounted) {
@@ -99,6 +137,16 @@ export default function ProductDetailPage() {
       mounted = false;
     };
   }, [productId]);
+
+  useEffect(() => {
+    if (!product) {
+      return;
+    }
+
+    const initialVariantId = resolveInitialVariantId(product, preferredVariantId);
+    setSelectedVariantId(initialVariantId);
+    setActiveImage(0);
+  }, [product, preferredVariantId]);
 
   const handleIncrease = () => setQuantity((prev) => prev + 1);
   const handleDecrease = () => setQuantity((prev) => (prev > 1 ? prev - 1 : 1));
@@ -137,18 +185,25 @@ export default function ProductDetailPage() {
     return [...images];
   }, [product, selectedVariant]);
 
+  const resolvedVariantId = selectedVariant?.id ?? product?.defaultVariantId ?? null;
+  const canAddToCart = !product?.hasVariants || Boolean(resolvedVariantId);
+
   const handleAddCustomQuantity = () => {
     if (!product) {
       return;
     }
 
+    if (!canAddToCart) {
+      return;
+    }
+
     void addToCart({
-      id: buildSelectionKey(Number(product.id), selectedVariant?.id ?? product.defaultVariantId),
+      id: buildSelectionKey(Number(product.id), resolvedVariantId ?? null),
       name: selectedVariant ? `${product.name} - ${selectedVariant.title}` : product.name,
       price: currentPrice,
       image: selectedVariant?.image || product.image,
       quantity,
-      variantId: selectedVariant?.id ?? product.defaultVariantId,
+      variantId: resolvedVariantId,
     });
   };
 
@@ -373,7 +428,7 @@ export default function ProductDetailPage() {
 
               <button
                 onClick={handleAddCustomQuantity}
-                disabled={currentStock <= 0}
+                disabled={currentStock <= 0 || !canAddToCart}
                 className="flex-1 bg-[#facc15] text-black py-5 px-8 rounded-full font-black text-sm uppercase tracking-[0.2em] shadow-xl hover:bg-black hover:text-white transition-all duration-300 flex items-center justify-center gap-3 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-[#facc15] disabled:hover:text-black"
               >
                 <ShoppingBasket size={20} />
@@ -491,12 +546,20 @@ export default function ProductDetailPage() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-            {recommendedProducts.map((rec) => (
-              <motion.div
-                key={rec.id}
-                whileHover={{ y: -8 }}
-                className="group bg-white rounded-4xl p-5 flex flex-col items-center text-center shadow-sm border border-transparent hover:border-yellow-100 hover:shadow-xl transition-all duration-300"
-              >
+            {recommendedProducts.map((rec) => {
+              const resolvedVariantId = rec.hasVariants ? rec.defaultVariantId : null;
+              const selectionId = buildSelectionKey(Number(rec.id), resolvedVariantId ?? null);
+              const productLink = resolvedVariantId
+                ? `/product/${rec.id}?variant=${resolvedVariantId}`
+                : `/product/${rec.id}`;
+              const isVariantReady = !rec.hasVariants || Boolean(resolvedVariantId);
+
+              return (
+                <motion.div
+                  key={rec.id}
+                  whileHover={{ y: -8 }}
+                  className="group bg-white rounded-4xl p-5 flex flex-col items-center text-center shadow-sm border border-transparent hover:border-yellow-100 hover:shadow-xl transition-all duration-300"
+                >
                 {/* Image Container with Floating Actions */}
                 <div className="relative w-full aspect-square bg-[#f8f8f8] rounded-3xl overflow-hidden mb-6 flex items-center justify-center">
                   {rec.status && (
@@ -508,7 +571,7 @@ export default function ProductDetailPage() {
                   {/* Secondary Actions (Visible on Hover) */}
                   <div className="absolute right-4 top-4 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                     <Link
-                      href={`/product/${rec.id}`}
+                      href={productLink}
                       className="p-2 bg-white text-gray-800 rounded-full shadow-md hover:bg-[#facc15] transition-colors flex items-center justify-center"
                     >
                       <Eye size={16} />
@@ -521,7 +584,7 @@ export default function ProductDetailPage() {
                     </button>
                   </div>
 
-                  <Link href={`/product/${rec.id}`} className="relative w-full h-full block">
+                  <Link href={productLink} className="relative w-full h-full block">
                     <Image
                       src={rec.image}
                       alt={rec.name}
@@ -541,7 +604,7 @@ export default function ProductDetailPage() {
 
                 {/* Title */}
                 <Link
-                  href={`/product/${rec.id}`}
+                  href={productLink}
                   className="text-sm font-bold text-gray-800 hover:text-yellow-600 transition-colors mb-3 h-10 line-clamp-2 px-2 leading-tight block"
                 >
                   {rec.name}
@@ -568,21 +631,27 @@ export default function ProductDetailPage() {
 
                 {/* Action Button */}
                 <button
-                  onClick={() =>
+                  onClick={() => {
+                    if (!isVariantReady) {
+                      return;
+                    }
+
                     addToCart({
-                      id: buildSelectionKey(Number(rec.id), rec.defaultVariantId),
+                      id: selectionId,
                       name: rec.name,
                       price: rec.price,
                       image: rec.image,
-                      variantId: rec.defaultVariantId,
-                    })
-                  }
-                  className="w-full py-3.5 border-2 border-gray-900 rounded-full text-[11px] font-black uppercase tracking-widest hover:bg-gray-900 hover:text-white transition-all cursor-pointer"
+                      variantId: resolvedVariantId,
+                    });
+                  }}
+                  disabled={!isVariantReady}
+                  className="w-full py-3.5 border-2 border-gray-900 rounded-full text-[11px] font-black uppercase tracking-widest hover:bg-gray-900 hover:text-white transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   Add to Cart
                 </button>
-              </motion.div>
-            ))}
+                </motion.div>
+              );
+            })}
           </div>
         </div>
       </div>

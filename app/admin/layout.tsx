@@ -20,11 +20,11 @@ export default function AdminLayout({
   children: React.ReactNode;
 }>) {
   const router = useRouter();
-  const { user, loading, isAuthenticated } = useAuth();
+  const { adminUser, loading, isAdminAuthenticated, logoutAdmin } = useAuth();
   const pathname = usePathname() || "";
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const isAdminLoginRoute = pathname === "/admin/login";
-  const hasAdminAccess = isAuthenticated && isAdminRole(user?.role);
+  const hasAdminAccess = isAdminAuthenticated && isAdminRole(adminUser?.role);
 
   useEffect(() => {
     if (isAdminLoginRoute || loading) {
@@ -77,6 +77,10 @@ export default function AdminLayout({
   };
 
   const closeSidebar = () => setIsSidebarOpen(false);
+  const handleLogout = () => {
+    logoutAdmin();
+    closeSidebar();
+  };
 
   return (
     <div className="flex h-screen bg-gray-50 text-gray-900 relative overflow-hidden">
@@ -253,14 +257,14 @@ export default function AdminLayout({
         </nav>
 
         <div className="p-4 border-t border-gray-200">
-          <Link
-            href="/"
-            onClick={closeSidebar}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-red-600 hover:bg-red-50 font-bold text-sm transition-colors cursor-pointer"
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="flex w-full items-center gap-3 px-3 py-2.5 rounded-lg text-red-600 hover:bg-red-50 font-bold text-sm transition-colors cursor-pointer"
           >
             <LogOut size={18} />
-            Back to Site
-          </Link>
+            Logout
+          </button>
         </div>
       </aside>
 
@@ -281,8 +285,16 @@ export default function AdminLayout({
           </div>
           <div className="flex items-center gap-4 shrink-0">
             <div className="w-9 h-9 sm:w-10 sm:h-10 bg-gray-900 rounded-full flex items-center justify-center text-[#facc15] font-black text-xs sm:text-sm border-2 border-gray-100 shadow-sm">
-              {(user?.firstName?.[0] || user?.email?.[0] || "A").toUpperCase()}
+              {(adminUser?.firstName?.[0] || adminUser?.email?.[0] || "A").toUpperCase()}
             </div>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="hidden sm:inline-flex items-center gap-2 rounded-full border border-red-200 bg-red-50 px-4 py-2 text-xs font-black uppercase tracking-widest text-red-600 hover:bg-red-600 hover:text-white transition-colors cursor-pointer"
+            >
+              <LogOut size={14} />
+              Logout
+            </button>
           </div>
         </header>
 
