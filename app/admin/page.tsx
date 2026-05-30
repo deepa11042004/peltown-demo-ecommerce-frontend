@@ -1,14 +1,165 @@
-import React from "react";
+"use client";
+
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { Package, ShoppingBag, Users, TrendingUp } from "lucide-react";
+import { adminOrderApi } from "@/lib/api";
+
+type DashboardOrder = {
+  id: number;
+  orderNumber?: string | null;
+  user?: {
+    fullName?: string | null;
+  } | null;
+  guestId?: string | null;
+  totalAmount?: number | null;
+  currency?: string | null;
+  orderStatus?: string | null;
+  createdAt?: string | null;
+};
+
+const formatDate = (value?: string | null) => {
+  if (!value) {
+    return "—";
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return "—";
+  }
+
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(parsed);
+};
+
+const formatCurrency = (amount?: number | null, currency = "INR") => {
+  if (typeof amount !== "number" || Number.isNaN(amount)) {
+    return "—";
+  }
+
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 2,
+  }).format(amount);
+};
+
+const formatOrderStatus = (status?: string | null) => {
+  if (!status) {
+    return "Unknown";
+  }
+
+  return status
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+};
+
+const getOrderStatusClasses = (status?: string | null) => {
+  const normalizedStatus = status?.toUpperCase();
+
+  if (normalizedStatus === "DELIVERED" || normalizedStatus === "SUCCESS") {
+    return "bg-green-100 text-green-700";
+  }
+
+  if (normalizedStatus === "PROCESSING" || normalizedStatus === "CONFIRMED") {
+    return "bg-blue-100 text-blue-700";
+  }
+
+  if (normalizedStatus === "SHIPPED") {
+    return "bg-sky-100 text-sky-700";
+  }
+
+  if (normalizedStatus === "CANCELLED" || normalizedStatus === "FAILED" || normalizedStatus === "REFUNDED") {
+    return "bg-red-100 text-red-700";
+  }
+
+  return "bg-yellow-100 text-yellow-700";
+};
+
+const extractOrders = (payload: unknown) => {
+  if (Array.isArray(payload)) {
+    return payload as DashboardOrder[];
+  }
+
+  if (payload && typeof payload === "object") {
+    const maybeData = payload as {
+      data?: {
+        items?: DashboardOrder[];
+      } | DashboardOrder[];
+      items?: DashboardOrder[];
+    };
+
+    if (Array.isArray(maybeData.data)) {
+      return maybeData.data;
+    }
+
+    if (Array.isArray(maybeData.data?.items)) {
+      return maybeData.data.items;
+    }
+
+    if (Array.isArray(maybeData.items)) {
+      return maybeData.items;
+    }
+  }
+
+  return [] as DashboardOrder[];
+};
 
 export default function AdminDashboard() {
+  const [recentOrders, setRecentOrders] = useState<DashboardOrder[]>([]);
+  const [loadingOrders, setLoadingOrders] = useState(true);
+  const [ordersError, setOrdersError] = useState("");
+
   const stats = [
     { title: "Total Sales", value: "₹24,500", icon: <TrendingUp size={24} />, trend: "+12%" },
     { title: "Active Users", value: "1,250", icon: <Users size={24} />, trend: "+5%" },
     { title: "Total Products", value: "85", icon: <Package size={24} />, trend: "0%" },
     { title: "New Orders", value: "32", icon: <ShoppingBag size={24} />, trend: "+25%" },
   ];
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadRecentOrders = async () => {
+      setLoadingOrders(true);
+      setOrdersError("");
+
+      try {
+        const response = await adminOrderApi.list({
+          page: 1,
+          limit: 4,
+          sort: "createdAt_desc",
+        });
+
+        if (!mounted) {
+          return;
+        }
+
+        setRecentOrders(extractOrders(response.data));
+      } catch (error) {
+        if (!mounted) {
+          return;
+        }
+
+        setOrdersError(error instanceof Error ? error.message : "Failed to load recent orders");
+        setRecentOrders([]);
+      } finally {
+        if (mounted) {
+          setLoadingOrders(false);
+        }
+      }
+    };
+
+    loadRecentOrders();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -49,28 +200,39 @@ export default function AdminDashboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {[
-                  { id: "#ORD-001", customer: "John Doe", date: "May 15, 2026", amount: "₹120.00", status: "Completed" },
-                  { id: "#ORD-002", customer: "Jane Smith", date: "May 14, 2026", amount: "₹45.50", status: "Processing" },
-                  { id: "#ORD-003", customer: "Michael Brown", date: "May 14, 2026", amount: "₹89.99", status: "Pending" },
-                  { id: "#ORD-004", customer: "Sarah Wilson", date: "May 13, 2026", amount: "₹210.00", status: "Completed" },
-                ].map((order, idx) => (
-                  <tr key={idx} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="py-4 font-medium">{order.id}</td>
-                    <td className="py-4 text-gray-600">{order.customer}</td>
-                    <td className="py-4 text-gray-500">{order.date}</td>
-                    <td className="py-4 font-semibold">{order.amount}</td>
-                    <td className="py-4">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
-                        order.status === "Completed" ? "bg-green-100 text-green-700" :
-                        order.status === "Processing" ? "bg-blue-100 text-blue-700" :
-                        "bg-yellow-100 text-yellow-700"
-                      }`}>
-                        {order.status}
-                      </span>
+                {loadingOrders ? (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center text-sm font-medium text-gray-500">
+                      Loading recent orders...
                     </td>
                   </tr>
-                ))}
+                ) : ordersError ? (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center text-sm font-medium text-red-600">
+                      {ordersError}
+                    </td>
+                  </tr>
+                ) : recentOrders.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center text-sm font-medium text-gray-500">
+                      No recent orders found.
+                    </td>
+                  </tr>
+                ) : (
+                  recentOrders.map((order) => (
+                    <tr key={order.id} className="hover:bg-gray-50/50 transition-colors">
+                      <td className="py-4 font-medium">{order.orderNumber || `#${order.id}`}</td>
+                      <td className="py-4 text-gray-600">{order.user?.fullName || "Guest"}</td>
+                      <td className="py-4 text-gray-500">{formatDate(order.createdAt)}</td>
+                      <td className="py-4 font-semibold">{formatCurrency(order.totalAmount, order.currency || "INR")}</td>
+                      <td className="py-4">
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${getOrderStatusClasses(order.orderStatus)}`}>
+                          {formatOrderStatus(order.orderStatus)}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
